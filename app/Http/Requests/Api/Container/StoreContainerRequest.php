@@ -13,8 +13,10 @@ class StoreContainerRequest extends FormRequest
 
     public function rules(): array
     {
+        $containerId = $this->route('container') ? $this->route('container')->id : 'NULL';
+        
         return [
-            'no' => 'required|string|unique:containers,no,' . ($this->container ? $this->container->id : 'NULL'),
+            'no' => 'required|string|unique:containers,no,' . $containerId,
             'type' => 'required|string',
             'bales' => 'required|integer',
             'weightLbs' => 'required|numeric',
