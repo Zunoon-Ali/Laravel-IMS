@@ -21,6 +21,7 @@ class StoreContainerRequest extends FormRequest
             'bales' => 'required|integer',
             'weightLbs' => 'required|numeric',
             'weightKg' => 'required|numeric',
+            'actual_weight' => 'required|numeric',
             'price' => 'required|numeric',
             'company' => 'required|string',
             'date' => 'required|date',

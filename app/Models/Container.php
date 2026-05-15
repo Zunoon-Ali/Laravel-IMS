@@ -15,6 +15,7 @@ class Container extends Model
         'bales',
         'weightLbs',
         'weightKg',
+        'actual_weight',
         'price',
         'company',
         'date',
