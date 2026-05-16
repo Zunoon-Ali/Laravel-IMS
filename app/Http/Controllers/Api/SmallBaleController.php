@@ -19,7 +19,7 @@ class SmallBaleController extends Controller
      */
     public function index(): JsonResponse
     {
-        $smallBales = SmallBale::latest()->get();
+        $smallBales = SmallBale::latest()->paginate(10);
         return $this->successResponse($smallBales, 'Small bales retrieved successfully');
     }
 

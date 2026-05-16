@@ -19,7 +19,7 @@ class ContainerController extends Controller
      */
     public function index(): JsonResponse
     {
-        $containers = Container::latest()->get();
+        $containers = Container::latest()->paginate(10);
         return $this->successResponse($containers, 'Containers retrieved successfully');
     }
 
@@ -63,7 +63,7 @@ class ContainerController extends Controller
      */
     public function getOpenedBales(): JsonResponse
     {
-        $openedBales = OpenedBale::latest()->get();
+        $openedBales = OpenedBale::latest()->paginate(10);
         return $this->successResponse($openedBales, 'Opened bales retrieved successfully');
     }
 
@@ -81,19 +81,106 @@ class ContainerController extends Controller
 
         $created = [];
         foreach ($request->productions as $prod) {
+            $container = Container::where('no', $prod['containerNo'])->first();
+            
+            $stockLbs = 0;
+            $openValue = 0;
+            $remaining = 0;
+            $remainingLbs = 0;
+            $remainingValue = 0;
+            $containerId = null;
+
+            if ($container) {
+                $containerId = $container->id;
+                $avgWeightLbs = $container->bales > 0 ? ($container->weightLbs / $container->bales) : 0;
+                $avgPricePerBale = $container->bales > 0 ? ($container->price / $container->bales) : 0;
+
+                $stockLbs = $prod['opened'] * $avgWeightLbs;
+                $openValue = $prod['opened'] * $avgPricePerBale;
+
+                // Total previously opened (including this one if it existed, but here it's new)
+                $totalOpenedSoFar = OpenedBale::where('containerNo', $prod['containerNo'])->sum('opened');
+                $remaining = $container->bales - ($totalOpenedSoFar + $prod['opened']);
+                
+                $totalStockLbsSoFar = OpenedBale::where('containerNo', $prod['containerNo'])->sum('stockLbs');
+                $remainingLbs = $container->weightLbs - ($totalStockLbsSoFar + $stockLbs);
+
+                $totalValueSoFar = OpenedBale::where('containerNo', $prod['containerNo'])->sum('openValue');
+                $remainingValue = $container->price - ($totalValueSoFar + $openValue);
+            }
+
             $created[] = OpenedBale::create([
+                'container_id' => $containerId,
                 'containerNo' => $prod['containerNo'],
                 'opened' => $prod['opened'],
                 'date' => $prod['date'],
-                // Add logic for remaining, stockLbs etc based on container if needed
-                'remaining' => 0,
-                'stockLbs' => 0,
-                'remainingLbs' => 0,
-                'openValue' => 0,
-                'remainingValue' => 0,
+                'remaining' => $remaining,
+                'stockLbs' => $stockLbs,
+                'remainingLbs' => $remainingLbs,
+                'openValue' => $openValue,
+                'remainingValue' => $remainingValue,
             ]);
         }
 
         return $this->successResponse($created, 'Opened bales records saved', 201);
+    }
+
+    /**
+     * Update Opened Bale
+     */
+    public function updateOpenedBale(Request $request, $id): JsonResponse
+    {
+        $openedBale = OpenedBale::findOrFail($id);
+        
+        $request->validate([
+            'opened' => 'required|integer',
+            'date' => 'required|date',
+        ]);
+
+        $container = Container::where('no', $openedBale->containerNo)->first();
+        
+        if ($container) {
+            $avgWeightLbs = $container->bales > 0 ? ($container->weightLbs / $container->bales) : 0;
+            $avgPricePerBale = $container->bales > 0 ? ($container->price / $container->bales) : 0;
+
+            $openedBale->opened = $request->opened;
+            $openedBale->date = $request->date;
+            $openedBale->stockLbs = $request->opened * $avgWeightLbs;
+            $openedBale->openValue = $request->opened * $avgPricePerBale;
+
+            // Recalculate remaining values based on ALL records EXCEPT this one being updated
+            $totalOpenedOthers = OpenedBale::where('containerNo', $openedBale->containerNo)
+                ->where('id', '!=', $id)
+                ->sum('opened');
+            
+            $openedBale->remaining = $container->bales - ($totalOpenedOthers + $request->opened);
+            
+            $totalStockLbsOthers = OpenedBale::where('containerNo', $openedBale->containerNo)
+                ->where('id', '!=', $id)
+                ->sum('stockLbs');
+            $openedBale->remainingLbs = $container->weightLbs - ($totalStockLbsOthers + $openedBale->stockLbs);
+
+            $totalValueOthers = OpenedBale::where('containerNo', $openedBale->containerNo)
+                ->where('id', '!=', $id)
+                ->sum('openValue');
+            $openedBale->remainingValue = $container->price - ($totalValueOthers + $openedBale->openValue);
+        } else {
+            $openedBale->opened = $request->opened;
+            $openedBale->date = $request->date;
+        }
+
+        $openedBale->save();
+
+        return $this->successResponse($openedBale, 'Opened bale record updated');
+    }
+
+    /**
+     * Delete Opened Bale
+     */
+    public function destroyOpenedBale($id): JsonResponse
+    {
+        $openedBale = OpenedBale::findOrFail($id);
+        $openedBale->delete();
+        return $this->successResponse(null, 'Opened bale record deleted');
     }
 }

@@ -1,9 +1,9 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContainerController;
 use App\Http\Controllers\Api\SmallBaleController;
-use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -28,6 +28,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('containers', ContainerController::class);
     Route::get('/opened-bales', [ContainerController::class, 'getOpenedBales']);
     Route::post('/opened-bales', [ContainerController::class, 'storeOpenedBales']);
+    Route::put('/opened-bales/{id}', [ContainerController::class, 'updateOpenedBale']);
+    Route::delete('/opened-bales/{id}', [ContainerController::class, 'destroyOpenedBale']);
 
     // Small Bale Routes
     Route::apiResource('small-bales', SmallBaleController::class);
