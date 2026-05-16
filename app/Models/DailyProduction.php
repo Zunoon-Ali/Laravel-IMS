@@ -12,6 +12,7 @@ class DailyProduction extends Model
     protected $fillable = [
         'name',
         'bales',
+        'sold',
         'weight',
         'supplier',
         'date',

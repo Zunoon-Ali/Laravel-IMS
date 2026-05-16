@@ -20,7 +20,19 @@ class ContainerController extends Controller
     public function index(): JsonResponse
     {
         $containers = Container::latest()->paginate(10);
-        return $this->successResponse($containers, 'Containers retrieved successfully');
+        
+        // Dynamic Stats calculation
+        $stats = [
+            'total_containers' => Container::count(),
+            'total_stock_kg' => Container::sum('weightKg'),
+            'total_stock_lbs' => Container::sum('weightLbs'),
+            'inventory_value' => Container::sum('price'),
+        ];
+
+        return $this->successResponse([
+            'containers' => $containers,
+            'stats' => $stats
+        ], 'Containers retrieved successfully');
     }
 
     /**
@@ -98,7 +110,7 @@ class ContainerController extends Controller
                 $stockLbs = $prod['opened'] * $avgWeightLbs;
                 $openValue = $prod['opened'] * $avgPricePerBale;
 
-                // Total previously opened (including this one if it existed, but here it's new)
+                // Total previously opened
                 $totalOpenedSoFar = OpenedBale::where('containerNo', $prod['containerNo'])->sum('opened');
                 $remaining = $container->bales - ($totalOpenedSoFar + $prod['opened']);
                 
@@ -148,7 +160,6 @@ class ContainerController extends Controller
             $openedBale->stockLbs = $request->opened * $avgWeightLbs;
             $openedBale->openValue = $request->opened * $avgPricePerBale;
 
-            // Recalculate remaining values based on ALL records EXCEPT this one being updated
             $totalOpenedOthers = OpenedBale::where('containerNo', $openedBale->containerNo)
                 ->where('id', '!=', $id)
                 ->sum('opened');

@@ -9,11 +9,6 @@ use App\Http\Controllers\Api\SmallBaleController;
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
-|
 */
 
 // Public Routes
@@ -34,4 +29,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Small Bale Routes
     Route::apiResource('small-bales', SmallBaleController::class);
     Route::post('/productions/batch', [SmallBaleController::class, 'storeProductionBatch']);
+
+    // Daily Production & Sales Routes
+    Route::get('/productions', [SmallBaleController::class, 'getDailyProductions']);
+    Route::get('/productions/sales', [SmallBaleController::class, 'getDailySales']);
 });
