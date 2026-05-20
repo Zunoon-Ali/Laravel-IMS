@@ -19,7 +19,11 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://mediumslateblue-grouse-908749.hostingersite.com',
+        'http://localhost:5173',
+        'http://localhost:5174',
+    ],
 
     'allowed_origins_patterns' => [],
 
