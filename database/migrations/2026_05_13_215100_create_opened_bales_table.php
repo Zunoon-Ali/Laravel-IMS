@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('opened_bales', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('container_id')->nullable()->constrained('containers')->onDelete('cascade');
+            $table->foreignId('container_id')->nullable()->constrained('containers')->onDelete('set null');
             $table->string('containerNo');
             $table->date('date');
             $table->integer('opened');
