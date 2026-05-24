@@ -16,6 +16,7 @@ class SmallBale extends Model
         'sale',
         'amount',
         'weight',
+        'weight_lbs',
         'rate',
         'date',
         'supplier',

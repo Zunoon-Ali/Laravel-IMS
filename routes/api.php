@@ -32,6 +32,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/opened-bales/{openedBale}', [ContainerController::class, 'destroyOpenedBale']);
 
     // Small Bale Routes
+    Route::get('/small-bales/daily-production', [SmallBaleController::class, 'getDailyProductions']);
+    Route::get('/small-bales/daily-sales', [SmallBaleController::class, 'getDailySales']);
     Route::apiResource('small-bales', SmallBaleController::class);
     Route::post('/productions/batch', [SmallBaleController::class, 'storeProductionBatch']);
 });

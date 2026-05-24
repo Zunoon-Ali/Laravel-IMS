@@ -20,6 +20,7 @@ class StoreSmallBaleRequest extends FormRequest
             'sale' => 'nullable|integer',
             'amount' => 'nullable|numeric',
             'weight' => 'nullable|numeric',
+            'weight_lbs' => 'nullable|numeric',
             'rate' => 'nullable|numeric',
             'date' => 'required|date',
             'supplier' => 'nullable|string',

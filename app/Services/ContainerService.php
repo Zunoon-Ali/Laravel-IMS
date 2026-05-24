@@ -89,11 +89,14 @@ class ContainerService
                 // Remaining Stock (lbs) = Bales Remaining * per bundle (lbs)
                 $remainingLbs = $remaining * $perBundleLbs;
 
-                // Open Stock Value = Stock Open (lbs) * price
-                $openValue = $stockLbs * floatval($container->price);
+                // Single bale price = container price / total container bales
+                $singleBalePrice = floatval($container->bales) > 0 ? (floatval($container->price) / floatval($container->bales)) : 0.0;
 
-                // Remaining Stock Value = Bales Remaining * price
-                $remainingValue = $remaining * floatval($container->price);
+                // Open Stock Value = bales opened now * single bale price
+                $openValue = $opened * $singleBalePrice;
+
+                // Remaining Stock Value = Bales Remaining * single bale price
+                $remainingValue = $remaining * $singleBalePrice;
 
                 // Update in-memory sums to handle multiple items for same container in same batch request
                 $openedSums->put($containerNo, $totalOpenedBefore + $opened);
@@ -149,11 +152,14 @@ class ContainerService
             // Remaining Stock (lbs) = Bales Remaining * per bundle (lbs)
             $remainingLbs = $remaining * $perBundleLbs;
 
-            // Open Stock Value = Stock Open (lbs) * price
-            $openValue = $stockLbs * floatval($container->price);
+            // Single bale price = container price / total container bales
+            $singleBalePrice = floatval($container->bales) > 0 ? (floatval($container->price) / floatval($container->bales)) : 0.0;
 
-            // Remaining Stock Value = Bales Remaining * price
-            $remainingValue = $remaining * floatval($container->price);
+            // Open Stock Value = bales opened * single bale price
+            $openValue = $opened * $singleBalePrice;
+
+            // Remaining Stock Value = Bales Remaining * single bale price
+            $remainingValue = $remaining * $singleBalePrice;
         } else {
             $remaining = 0;
             $stockLbs = 0;
