@@ -126,4 +126,32 @@ class SmallBaleController extends Controller
         $pivot = $this->smallBaleService->getDailySalesPivot($category);
         return $this->successResponse($pivot, 'Daily sales retrieved successfully');
     }
+
+    /**
+     * Upload an image file and return its public URL.
+     */
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
+        ]);
+
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            
+            // Ensure public/uploads directory exists
+            $path = public_path('uploads');
+            if (!file_exists($path)) {
+                mkdir($path, 0777, true);
+            }
+            
+            $file->move($path, $filename);
+            $url = url('uploads/' . $filename);
+            
+            return $this->successResponse(['url' => $url], 'Image uploaded successfully');
+        }
+
+        return $this->errorResponse('No image file provided', 400);
+    }
 }

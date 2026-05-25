@@ -26,5 +26,6 @@ class SmallBale extends Model
         'status',
         'quantity',
         'notes',
+        'image',
     ];
 }

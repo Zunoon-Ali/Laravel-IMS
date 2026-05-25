@@ -20,8 +20,10 @@ class SmallBaleService
         // Auto-calculate weight in Lbs
         $data['weight_lbs'] = $weight * 2.20462;
 
-        // Auto-calculate total inventory amount
-        $data['amount'] = $quantity * $weight * $rate;
+        // Auto-calculate total inventory amount if not explicitly provided
+        if (!isset($data['amount']) || $data['amount'] === null) {
+            $data['amount'] = $quantity * $weight * $rate;
+        }
 
         // Initial stock is equal to the added quantity
         $data['stock'] = $quantity;
@@ -40,7 +42,10 @@ class SmallBaleService
 
         // Recalculate parameters
         $data['weight_lbs'] = $weight * 2.20462;
-        $data['amount'] = $quantity * $weight * $rate;
+        
+        if (!isset($data['amount']) || $data['amount'] === null) {
+            $data['amount'] = $quantity * $weight * $rate;
+        }
 
         // Keep stock updated if quantity is explicitly changed
         if (isset($data['quantity'])) {

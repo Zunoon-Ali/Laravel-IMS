@@ -30,6 +30,7 @@ class StoreSmallBaleRequest extends FormRequest
             'status' => 'nullable|string',
             'quantity' => 'nullable|integer',
             'notes' => 'nullable|string',
+            'image' => 'nullable|string',
         ];
     }
 }

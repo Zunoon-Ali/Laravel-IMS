@@ -37,6 +37,7 @@ class SmallBaleResource extends JsonResource
             'status' => $this->status,
             'quantity' => $this->quantity,
             'notes' => $this->notes,
+            'image' => $this->image,
             'created_at' => $this->created_at ? $this->created_at->toDateTimeString() : null,
             'updated_at' => $this->updated_at ? $this->updated_at->toDateTimeString() : null,
         ];
