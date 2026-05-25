@@ -60,7 +60,25 @@ class SmallBaleController extends Controller
      */
     public function show(SmallBale $smallBale): JsonResponse
     {
-        $history = \App\Models\DailyProduction::where('name', $smallBale->name)->latest()->get();
+        $history = \App\Models\DailyProduction::query()
+            ->where(function ($query) use ($smallBale) {
+                $query->where('small_bale_id', $smallBale->id)
+                    ->orWhere(function ($q) use ($smallBale) {
+                        $q->whereNull('small_bale_id')
+                            ->where('name', $smallBale->name);
+                    });
+            })
+            ->latest()
+            ->get()
+            ->map(fn ($record) => [
+                'id' => $record->id,
+                'date' => $record->date?->format('d-M-Y') ?? $record->date,
+                'bales' => $record->bales,
+                'weight' => $record->weight,
+                'supplier' => $record->supplier,
+            ])
+            ->values();
+
         return $this->successResponse([
             'item' => new SmallBaleResource($smallBale),
             'history' => $history
@@ -96,6 +114,7 @@ class SmallBaleController extends Controller
         $request->validate([
             'productions' => 'required|array',
             'productions.*.name' => 'required|string',
+            'productions.*.small_bale_id' => 'nullable|integer|exists:small_bales,id',
             'productions.*.bales' => 'required|integer|min:1',
             'productions.*.weight' => 'required|numeric|max:5000',
             'productions.*.supplier' => 'nullable|string',

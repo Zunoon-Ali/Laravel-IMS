@@ -76,8 +76,18 @@ class SmallBaleService
                 $supplier = $prod['supplier'] ?? null;
                 $date = $prod['date'];
 
+                // Resolve bale by id first, then by name
+                $smallBale = null;
+                if (!empty($prod['small_bale_id'])) {
+                    $smallBale = SmallBale::find($prod['small_bale_id']);
+                }
+                if (!$smallBale) {
+                    $smallBale = $smallBales->get($name);
+                }
+
                 // Create the DailyProduction record
                 $dailyProd = DailyProduction::create([
+                    'small_bale_id' => $smallBale?->id,
                     'name' => $name,
                     'bales' => $bales,
                     'weight' => $weight,
@@ -87,7 +97,6 @@ class SmallBaleService
                 $createdRecords[] = $dailyProd;
 
                 // Update the matching SmallBale item stock and production
-                $smallBale = $smallBales->get($name);
                 if ($smallBale) {
                     $newProduction = intval($smallBale->production) + $bales;
                     $newStock = intval($smallBale->stock) + $bales;
