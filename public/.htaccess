@@ -5,6 +5,18 @@
 
     RewriteEngine On
 
+    # Handle OPTIONS preflight requests directly
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ - [R=204,L]
+
+    <IfModule mod_headers.c>
+        SetEnvIf Request_Method "OPTIONS" IS_OPTIONS
+        Header always set Access-Control-Allow-Origin "https://mediumslateblue-grouse-908749.hostingersite.com" env=IS_OPTIONS
+        Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" env=IS_OPTIONS
+        Header always set Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization, X-Requested-With" env=IS_OPTIONS
+        Header always set Access-Control-Max-Age "86400" env=IS_OPTIONS
+    </IfModule>
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
