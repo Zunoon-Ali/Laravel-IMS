@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContainerController;
+use App\Http\Controllers\Api\PersonalNameController;
 use App\Http\Controllers\Api\SmallBaleController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,4 +38,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/small-bales/upload-image', [SmallBaleController::class, 'uploadImage']);
     Route::apiResource('small-bales', SmallBaleController::class);
     Route::post('/productions/batch', [SmallBaleController::class, 'storeProductionBatch']);
+
+    // Personal Name Module Routes
+    Route::prefix('personal')->group(function () {
+        Route::get('/next-invoice', [PersonalNameController::class, 'getNextInvoiceNo']);
+        Route::get('/stock-entries', [PersonalNameController::class, 'getStockEntries']);
+        Route::post('/stock-entries', [PersonalNameController::class, 'storeStockEntry']);
+        Route::get('/payments-received', [PersonalNameController::class, 'getPaymentsReceived']);
+        Route::post('/payments-received', [PersonalNameController::class, 'storePaymentReceived']);
+        Route::get('/return-invoices', [PersonalNameController::class, 'getReturnInvoices']);
+        Route::post('/return-invoices', [PersonalNameController::class, 'storeReturnInvoice']);
+    });
 });
