@@ -20,7 +20,8 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
-        'https://mediumslateblue-grouse-908749.hostingersite.com',
+        'https://ims.paktradinggroup.com',
+        'https://paktradinggroup.com',
         'http://localhost:5173',
         'http://localhost:5174',
     ],
@@ -33,6 +34,6 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => false,
+    'supports_credentials' => true,
 
 ];
