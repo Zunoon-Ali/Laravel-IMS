@@ -21,9 +21,11 @@ return [
 
     'allowed_origins' => [
         'https://ims.paktradinggroup.com',
-        'https://paktradinggroup.com',
+        'https://api.paktradinggroup.com',
         'http://localhost:5173',
         'http://localhost:5174',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
     ],
 
     'allowed_origins_patterns' => [],
