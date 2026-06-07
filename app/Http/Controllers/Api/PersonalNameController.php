@@ -6,15 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Personal\StoreStockEntryRequest;
 use App\Http\Requests\Api\Personal\StorePaymentReceivedRequest;
 use App\Http\Requests\Api\Personal\StoreReturnInvoiceRequest;
+use App\Http\Requests\Api\Personal\StoreSupplierRequest;
+use App\Http\Requests\Api\Personal\StoreCustomerRequest;
 use App\Http\Resources\PersonalStockEntryResource;
 use App\Http\Resources\PersonalPaymentReceivedResource;
 use App\Http\Resources\PersonalReturnInvoiceResource;
+use App\Http\Resources\PersonalSupplierResource;
+use App\Http\Resources\PersonalCustomerResource;
 use App\DTOs\PersonalStockEntryDTO;
 use App\DTOs\PersonalPaymentReceivedDTO;
 use App\DTOs\PersonalReturnInvoiceDTO;
 use App\Repositories\Contracts\PersonalStockRepositoryInterface;
 use App\Repositories\Contracts\PersonalPaymentRepositoryInterface;
 use App\Repositories\Contracts\PersonalReturnRepositoryInterface;
+use App\Repositories\Contracts\PersonalSupplierRepositoryInterface;
+use App\Repositories\Contracts\PersonalCustomerRepositoryInterface;
 use App\Services\PersonalService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +34,9 @@ class PersonalNameController extends Controller
         protected readonly PersonalService $personalService,
         protected readonly PersonalStockRepositoryInterface $stockRepo,
         protected readonly PersonalPaymentRepositoryInterface $paymentRepo,
-        protected readonly PersonalReturnRepositoryInterface $returnRepo
+        protected readonly PersonalReturnRepositoryInterface $returnRepo,
+        protected readonly PersonalSupplierRepositoryInterface $supplierRepo,
+        protected readonly PersonalCustomerRepositoryInterface $customerRepo
     ) {}
 
     /**
@@ -40,6 +48,17 @@ class PersonalNameController extends Controller
         return $this->successResponse([
             'invoice_no' => $invoiceNo
         ], 'Next invoice number generated');
+    }
+
+    /**
+     * Get next sequential Stock Entry Invoice/Container Number.
+     */
+    public function getNextStockInvoiceNo(): JsonResponse
+    {
+        $invoiceNo = $this->personalService->generateNextStockInvoiceNo();
+        return $this->successResponse([
+            'invoice_no' => $invoiceNo
+        ], 'Next stock invoice number generated');
     }
 
     /**
@@ -136,5 +155,55 @@ class PersonalNameController extends Controller
             Log::error('Return invoice store failed: ' . $e->getMessage());
             return $this->errorResponse('Failed to record return invoice: ' . $e->getMessage(), 500);
         }
+    }
+
+    /**
+     * Get all Personal Suppliers.
+     */
+    public function getSuppliers(): JsonResponse
+    {
+        $suppliers = $this->supplierRepo->all();
+        return $this->successResponse(
+            PersonalSupplierResource::collection($suppliers),
+            'Suppliers retrieved successfully'
+        );
+    }
+
+    /**
+     * Store a new Personal Supplier.
+     */
+    public function storeSupplier(StoreSupplierRequest $request): JsonResponse
+    {
+        $supplier = $this->supplierRepo->create($request->validated());
+        return $this->successResponse(
+            new PersonalSupplierResource($supplier),
+            'Supplier created successfully',
+            201
+        );
+    }
+
+    /**
+     * Get all Personal Customers.
+     */
+    public function getCustomers(): JsonResponse
+    {
+        $customers = $this->customerRepo->all();
+        return $this->successResponse(
+            PersonalCustomerResource::collection($customers),
+            'Customers retrieved successfully'
+        );
+    }
+
+    /**
+     * Store a new Personal Customer.
+     */
+    public function storeCustomer(StoreCustomerRequest $request): JsonResponse
+    {
+        $customer = $this->customerRepo->create($request->validated());
+        return $this->successResponse(
+            new PersonalCustomerResource($customer),
+            'Customer created successfully',
+            201
+        );
     }
 }

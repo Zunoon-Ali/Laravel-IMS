@@ -17,10 +17,14 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        User::factory()->create([
-            'name' => 'ERP Admin',
-            'email' => 'bscs2312405@szabist.pk',
-            'password' => bcrypt('abcd.1234'),
-        ]);
+        if (!User::where('email', 'bscs2312405@szabist.pk')->exists()) {
+            User::factory()->create([
+                'name' => 'ERP Admin',
+                'email' => 'bscs2312405@szabist.pk',
+                'password' => bcrypt('abcd.1234'),
+            ]);
+        }
+
+        $this->call(PersonalModuleSeeder::class);
     }
 }

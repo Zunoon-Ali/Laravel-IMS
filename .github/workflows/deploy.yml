@@ -1,0 +1,36 @@
+name: Deploy Laravel API
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 65002 }}
+          script: |
+            cd /home/u262456491/domains/paktradinggroup.com/public_html/Laravel-IMS
+            
+            # Pull latest changes from git
+            git pull origin main
+            
+            # Install production-optimized composer dependencies
+            composer install --no-dev --optimize-autoloader
+            
+            # Run database migrations
+            php artisan migrate --force
+            
+            # Clear and rebuild cache for performance
+            php artisan optimize:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache

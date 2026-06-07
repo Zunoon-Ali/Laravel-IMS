@@ -28,7 +28,10 @@ class PersonalService
     public function storeStockEntry(PersonalStockEntryDTO $dto): PersonalStockEntry
     {
         return DB::transaction(function () use ($dto) {
-            $entry = $this->stockRepo->create($dto->toArray());
+            $containerNo = $dto->containerNo ?: $this->generateNextStockInvoiceNo();
+            $entry = $this->stockRepo->create(array_merge($dto->toArray(), [
+                'container_no' => $containerNo
+            ]));
 
             foreach ($dto->smallBaleItems as $item) {
                 $entry->items()->create([
@@ -54,6 +57,15 @@ class PersonalService
 
             return $entry;
         });
+    }
+
+    /**
+     * Get auto-generated next Purchased Stock Invoice/Container Number.
+     */
+    public function generateNextStockInvoiceNo(): string
+    {
+        // 6 characters UUID-like alphanumeric key (e.g. 7D2AE8)
+        return strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 6));
     }
 
     /**

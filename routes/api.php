@@ -42,11 +42,17 @@ Route::middleware('auth:sanctum')->group(function () {
     // Personal Name Module Routes
     Route::prefix('personal')->group(function () {
         Route::get('/next-invoice', [PersonalNameController::class, 'getNextInvoiceNo']);
+        Route::get('/next-stock-invoice', [PersonalNameController::class, 'getNextStockInvoiceNo']);
         Route::get('/stock-entries', [PersonalNameController::class, 'getStockEntries']);
         Route::post('/stock-entries', [PersonalNameController::class, 'storeStockEntry']);
         Route::get('/payments-received', [PersonalNameController::class, 'getPaymentsReceived']);
         Route::post('/payments-received', [PersonalNameController::class, 'storePaymentReceived']);
         Route::get('/return-invoices', [PersonalNameController::class, 'getReturnInvoices']);
         Route::post('/return-invoices', [PersonalNameController::class, 'storeReturnInvoice']);
+
+        Route::get('/suppliers', [PersonalNameController::class, 'getSuppliers']);
+        Route::post('/suppliers', [PersonalNameController::class, 'storeSupplier']);
+        Route::get('/customers', [PersonalNameController::class, 'getCustomers']);
+        Route::post('/customers', [PersonalNameController::class, 'storeCustomer']);
     });
 });

@@ -27,6 +27,14 @@ class AppServiceProvider extends ServiceProvider
             \App\Repositories\Contracts\PersonalReturnRepositoryInterface::class,
             \App\Repositories\Eloquent\PersonalReturnRepository::class
         );
+        $this->app->bind(
+            \App\Repositories\Contracts\PersonalSupplierRepositoryInterface::class,
+            \App\Repositories\Eloquent\PersonalSupplierRepository::class
+        );
+        $this->app->bind(
+            \App\Repositories\Contracts\PersonalCustomerRepositoryInterface::class,
+            \App\Repositories\Eloquent\PersonalCustomerRepository::class
+        );
     }
 
     /**
