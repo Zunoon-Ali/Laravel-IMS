@@ -49,6 +49,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/payments-received', [PersonalNameController::class, 'storePaymentReceived']);
         Route::get('/return-invoices', [PersonalNameController::class, 'getReturnInvoices']);
         Route::post('/return-invoices', [PersonalNameController::class, 'storeReturnInvoice']);
+        Route::get('/payments-sent', [PersonalNameController::class, 'getPaymentsSent']);
+        Route::post('/payments-sent', [PersonalNameController::class, 'storePaymentSent']);
 
         Route::get('/suppliers', [PersonalNameController::class, 'getSuppliers']);
         Route::post('/suppliers', [PersonalNameController::class, 'storeSupplier']);

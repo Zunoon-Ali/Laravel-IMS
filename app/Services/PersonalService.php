@@ -5,12 +5,15 @@ namespace App\Services;
 use App\DTOs\PersonalStockEntryDTO;
 use App\DTOs\PersonalPaymentReceivedDTO;
 use App\DTOs\PersonalReturnInvoiceDTO;
+use App\DTOs\PersonalPaymentSentDTO;
 use App\Models\PersonalStockEntry;
 use App\Models\PersonalPaymentReceived;
 use App\Models\PersonalReturnInvoice;
+use App\Models\PersonalPaymentSent;
 use App\Repositories\Contracts\PersonalStockRepositoryInterface;
 use App\Repositories\Contracts\PersonalPaymentRepositoryInterface;
 use App\Repositories\Contracts\PersonalReturnRepositoryInterface;
+use App\Repositories\Contracts\PersonalPaymentSentRepositoryInterface;
 use App\Events\PersonalPaymentRecorded;
 use Illuminate\Support\Facades\DB;
 
@@ -19,7 +22,8 @@ class PersonalService
     public function __construct(
         protected readonly PersonalStockRepositoryInterface $stockRepo,
         protected readonly PersonalPaymentRepositoryInterface $paymentRepo,
-        protected readonly PersonalReturnRepositoryInterface $returnRepo
+        protected readonly PersonalReturnRepositoryInterface $returnRepo,
+        protected readonly PersonalPaymentSentRepositoryInterface $paymentSentRepo
     ) {}
 
     /**
@@ -145,6 +149,60 @@ class PersonalService
             }
 
             return $returnInvoice;
+        });
+    }
+
+    /**
+     * Get auto-generated next Payment Sent Invoice Number.
+     */
+    public function generateNextPaymentSentInvoiceNo(): string
+    {
+        $latest = $this->paymentSentRepo->getLatest();
+        if ($latest) {
+            preg_match('/INV-(\d+)/', $latest->invoice_no, $matches);
+            $nextNum = isset($matches[1]) ? ((int) $matches[1]) + 1 : 10001;
+        } else {
+            $nextNum = 10001;
+        }
+        return 'INV-' . $nextNum;
+    }
+
+    /**
+     * Store Payment Sent with sub-cheques and online logs.
+     */
+    public function storePaymentSent(PersonalPaymentSentDTO $dto): PersonalPaymentSent
+    {
+        return DB::transaction(function () use ($dto) {
+            $invoiceNo = $this->generateNextPaymentSentInvoiceNo();
+
+            $paymentData = array_merge($dto->toArray(), [
+                'invoice_no' => $invoiceNo
+            ]);
+
+            $payment = $this->paymentSentRepo->create($paymentData);
+
+            foreach ($dto->cheques as $cheque) {
+                $payment->cheques()->create([
+                    'bank_name' => $cheque['bank_name'],
+                    'check_no' => $cheque['check_no'],
+                    'due_date' => $cheque['due_date'],
+                    'to_name' => $cheque['to_name'],
+                    'amount' => $cheque['amount'],
+                ]);
+            }
+
+            foreach ($dto->onlines as $online) {
+                $payment->onlines()->create([
+                    'bank_name' => $online['bank_name'],
+                    'name' => $online['name'],
+                    'payment_date' => $online['date'],
+                    'from_name' => $online['from'],
+                    'to_name' => $online['to'],
+                    'amount' => $online['amount'],
+                ]);
+            }
+
+            return $payment;
         });
     }
 }

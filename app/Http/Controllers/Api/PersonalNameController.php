@@ -8,17 +8,21 @@ use App\Http\Requests\Api\Personal\StorePaymentReceivedRequest;
 use App\Http\Requests\Api\Personal\StoreReturnInvoiceRequest;
 use App\Http\Requests\Api\Personal\StoreSupplierRequest;
 use App\Http\Requests\Api\Personal\StoreCustomerRequest;
+use App\Http\Requests\Api\Personal\StorePaymentSentRequest;
 use App\Http\Resources\PersonalStockEntryResource;
 use App\Http\Resources\PersonalPaymentReceivedResource;
 use App\Http\Resources\PersonalReturnInvoiceResource;
+use App\Http\Resources\PersonalPaymentSentResource;
 use App\Http\Resources\PersonalSupplierResource;
 use App\Http\Resources\PersonalCustomerResource;
 use App\DTOs\PersonalStockEntryDTO;
 use App\DTOs\PersonalPaymentReceivedDTO;
 use App\DTOs\PersonalReturnInvoiceDTO;
+use App\DTOs\PersonalPaymentSentDTO;
 use App\Repositories\Contracts\PersonalStockRepositoryInterface;
 use App\Repositories\Contracts\PersonalPaymentRepositoryInterface;
 use App\Repositories\Contracts\PersonalReturnRepositoryInterface;
+use App\Repositories\Contracts\PersonalPaymentSentRepositoryInterface;
 use App\Repositories\Contracts\PersonalSupplierRepositoryInterface;
 use App\Repositories\Contracts\PersonalCustomerRepositoryInterface;
 use App\Services\PersonalService;
@@ -36,7 +40,8 @@ class PersonalNameController extends Controller
         protected readonly PersonalPaymentRepositoryInterface $paymentRepo,
         protected readonly PersonalReturnRepositoryInterface $returnRepo,
         protected readonly PersonalSupplierRepositoryInterface $supplierRepo,
-        protected readonly PersonalCustomerRepositoryInterface $customerRepo
+        protected readonly PersonalCustomerRepositoryInterface $customerRepo,
+        protected readonly PersonalPaymentSentRepositoryInterface $paymentSentRepo
     ) {}
 
     /**
@@ -154,6 +159,38 @@ class PersonalNameController extends Controller
         } catch (\Exception $e) {
             Log::error('Return invoice store failed: ' . $e->getMessage());
             return $this->errorResponse('Failed to record return invoice: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get all Payments Sent.
+     */
+    public function getPaymentsSent(): JsonResponse
+    {
+        $payments = $this->paymentSentRepo->getAllWithRelations();
+        return $this->successResponse(
+            PersonalPaymentSentResource::collection($payments),
+            'Payments sent retrieved successfully'
+        );
+    }
+
+    /**
+     * Store a new Payment Sent.
+     */
+    public function storePaymentSent(StorePaymentSentRequest $request): JsonResponse
+    {
+        try {
+            $dto = PersonalPaymentSentDTO::fromRequest($request->validated());
+            $payment = $this->personalService->storePaymentSent($dto);
+
+            return $this->successResponse(
+                new PersonalPaymentSentResource($payment->load(['cheques', 'onlines'])),
+                'Payment sent recorded successfully',
+                201
+            );
+        } catch (\Exception $e) {
+            Log::error('Payment sent store failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to record payment sent: ' . $e->getMessage(), 500);
         }
     }
 
