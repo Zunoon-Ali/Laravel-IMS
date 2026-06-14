@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContainerController;
 use App\Http\Controllers\Api\PersonalNameController;
 use App\Http\Controllers\Api\SmallBaleController;
+use App\Http\Controllers\Api\BankController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -38,6 +39,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/small-bales/upload-image', [SmallBaleController::class, 'uploadImage']);
     Route::apiResource('small-bales', SmallBaleController::class);
     Route::post('/productions/batch', [SmallBaleController::class, 'storeProductionBatch']);
+
+    // Bank Routes
+    Route::apiResource('banks', BankController::class);
 
     // Personal Name Module Routes
     Route::prefix('personal')->group(function () {

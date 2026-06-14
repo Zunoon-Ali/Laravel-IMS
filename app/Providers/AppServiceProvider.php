@@ -41,6 +41,10 @@ class AppServiceProvider extends ServiceProvider
             \App\Repositories\Contracts\PersonalPaymentSentRepositoryInterface::class,
             \App\Repositories\Eloquent\PersonalPaymentSentRepository::class
         );
+        $this->app->bind(
+            \App\Repositories\Contracts\BankRepositoryInterface::class,
+            \App\Repositories\Eloquent\BankRepository::class
+        );
     }
 
     /**
