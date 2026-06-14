@@ -9,4 +9,6 @@ interface PersonalSupplierRepositoryInterface
 {
     public function all(): Collection;
     public function create(array $data): PersonalSupplier;
+    public function update(int|string $id, array $data): ?PersonalSupplier;
+    public function delete(int|string $id): bool;
 }

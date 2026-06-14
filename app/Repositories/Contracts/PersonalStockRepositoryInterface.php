@@ -9,4 +9,6 @@ interface PersonalStockRepositoryInterface
 {
     public function getAllWithItems(): Collection;
     public function create(array $data): PersonalStockEntry;
+    public function update(int $id, array $data): ?PersonalStockEntry;
+    public function delete(int $id): bool;
 }

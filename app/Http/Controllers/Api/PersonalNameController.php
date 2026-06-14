@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Personal\StoreStockEntryRequest;
+use App\Http\Requests\Api\Personal\UpdateStockEntryRequest;
 use App\Http\Requests\Api\Personal\StorePaymentReceivedRequest;
 use App\Http\Requests\Api\Personal\StoreReturnInvoiceRequest;
 use App\Http\Requests\Api\Personal\StoreSupplierRequest;
+use App\Http\Requests\Api\Personal\UpdateSupplierRequest;
 use App\Http\Requests\Api\Personal\StoreCustomerRequest;
 use App\Http\Requests\Api\Personal\StorePaymentSentRequest;
 use App\Http\Resources\PersonalStockEntryResource;
@@ -95,6 +97,46 @@ class PersonalNameController extends Controller
         } catch (\Exception $e) {
             Log::error('Stock entry store failed: ' . $e->getMessage());
             return $this->errorResponse('Failed to create stock entry: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Update an existing Purchased Stock Entry.
+     */
+    public function updateStockEntry(UpdateStockEntryRequest $request, $id): JsonResponse
+    {
+        try {
+            $dto = PersonalStockEntryDTO::fromRequest($request->validated());
+            $entry = $this->personalService->updateStockEntry((int) $id, $dto);
+
+            if (!$entry) {
+                return $this->errorResponse('Stock entry not found', 404);
+            }
+
+            return $this->successResponse(
+                new PersonalStockEntryResource($entry->load('items')),
+                'Stock entry updated successfully'
+            );
+        } catch (\Exception $e) {
+            Log::error('Stock entry update failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to update stock entry: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Delete a Purchased Stock Entry.
+     */
+    public function destroyStockEntry($id): JsonResponse
+    {
+        try {
+            $deleted = $this->personalService->deleteStockEntry((int) $id);
+            if (!$deleted) {
+                return $this->errorResponse('Stock entry not found or failed to delete', 404);
+            }
+            return $this->successResponse(null, 'Stock entry deleted successfully');
+        } catch (\Exception $e) {
+            Log::error('Stock entry delete failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to delete stock entry: ' . $e->getMessage(), 500);
         }
     }
 
@@ -217,6 +259,43 @@ class PersonalNameController extends Controller
             'Supplier created successfully',
             201
         );
+    }
+
+    /**
+     * Update an existing Personal Supplier.
+     */
+    public function updateSupplier(UpdateSupplierRequest $request, $id): JsonResponse
+    {
+        try {
+            $supplier = $this->supplierRepo->update($id, $request->validated());
+            if (!$supplier) {
+                return $this->errorResponse('Supplier not found', 404);
+            }
+            return $this->successResponse(
+                new PersonalSupplierResource($supplier),
+                'Supplier updated successfully'
+            );
+        } catch (\Exception $e) {
+            Log::error('Supplier update failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to update supplier: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Delete a Personal Supplier.
+     */
+    public function destroySupplier($id): JsonResponse
+    {
+        try {
+            $deleted = $this->supplierRepo->delete($id);
+            if (!$deleted) {
+                return $this->errorResponse('Supplier not found or failed to delete', 404);
+            }
+            return $this->successResponse(null, 'Supplier deleted successfully');
+        } catch (\Exception $e) {
+            Log::error('Supplier delete failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to delete supplier: ' . $e->getMessage(), 500);
+        }
     }
 
     /**

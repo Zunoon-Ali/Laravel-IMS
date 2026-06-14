@@ -59,8 +59,60 @@ class PersonalService
                 ]);
             }
 
+            event(new \App\Events\PersonalStockEntrySaved($entry));
+
             return $entry;
         });
+    }
+
+    /**
+     * Update Purchased Stock Entry with sub-items inside a Transaction.
+     */
+    public function updateStockEntry(int $id, PersonalStockEntryDTO $dto): ?PersonalStockEntry
+    {
+        return DB::transaction(function () use ($id, $dto) {
+            $entry = $this->stockRepo->update($id, $dto->toArray());
+            if (!$entry) {
+                return null;
+            }
+
+            // Delete old items and insert new ones
+            $entry->items()->delete();
+
+            foreach ($dto->smallBaleItems as $item) {
+                $entry->items()->create([
+                    'bale_type' => \App\Enums\BaleType::SMALL->value,
+                    'no_of_bales' => $item['no_of_bales'],
+                    'item_name' => $item['item_name'],
+                    'company' => $item['company'],
+                    'weight' => $item['weight'],
+                    'rate' => $item['rate'],
+                ]);
+            }
+
+            foreach ($dto->bigBaleItems as $item) {
+                $entry->items()->create([
+                    'bale_type' => \App\Enums\BaleType::BIG->value,
+                    'no_of_bales' => $item['no_of_bales'],
+                    'item_name' => $item['item_name'],
+                    'company' => $item['company'],
+                    'weight' => $item['weight'],
+                    'rate' => $item['rate'],
+                ]);
+            }
+
+            event(new \App\Events\PersonalStockEntrySaved($entry));
+
+            return $entry;
+        });
+    }
+
+    /**
+     * Delete Purchased Stock Entry.
+     */
+    public function deleteStockEntry(int $id): bool
+    {
+        return $this->stockRepo->delete($id);
     }
 
     /**

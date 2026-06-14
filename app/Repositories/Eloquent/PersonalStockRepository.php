@@ -18,4 +18,23 @@ class PersonalStockRepository implements PersonalStockRepositoryInterface
     {
         return PersonalStockEntry::create($data);
     }
+
+    public function update(int $id, array $data): ?PersonalStockEntry
+    {
+        $entry = PersonalStockEntry::find($id);
+        if ($entry) {
+            $entry->update($data);
+            return $entry;
+        }
+        return null;
+    }
+
+    public function delete(int $id): bool
+    {
+        $entry = PersonalStockEntry::find($id);
+        if ($entry) {
+            return (bool) $entry->delete();
+        }
+        return false;
+    }
 }

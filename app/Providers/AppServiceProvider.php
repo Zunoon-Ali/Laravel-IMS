@@ -7,6 +7,8 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Event;
 use App\Events\PersonalPaymentRecorded;
 use App\Listeners\LogPersonalPaymentSuccess;
+use App\Events\PersonalStockEntrySaved;
+use App\Listeners\LogPersonalStockEntrySuccess;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -49,6 +51,11 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(
             PersonalPaymentRecorded::class,
             LogPersonalPaymentSuccess::class
+        );
+
+        Event::listen(
+            PersonalStockEntrySaved::class,
+            LogPersonalStockEntrySuccess::class
         );
     }
 }

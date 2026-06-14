@@ -54,7 +54,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/suppliers', [PersonalNameController::class, 'getSuppliers']);
         Route::post('/suppliers', [PersonalNameController::class, 'storeSupplier']);
+        Route::put('/suppliers/{id}', [PersonalNameController::class, 'updateSupplier']);
+        Route::delete('/suppliers/{id}', [PersonalNameController::class, 'destroySupplier']);
         Route::get('/customers', [PersonalNameController::class, 'getCustomers']);
         Route::post('/customers', [PersonalNameController::class, 'storeCustomer']);
+
+        Route::put('/stock-entries/{id}', [PersonalNameController::class, 'updateStockEntry']);
+        Route::delete('/stock-entries/{id}', [PersonalNameController::class, 'destroyStockEntry']);
     });
 });

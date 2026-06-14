@@ -17,4 +17,23 @@ class PersonalSupplierRepository implements PersonalSupplierRepositoryInterface
     {
         return PersonalSupplier::create($data);
     }
+
+    public function update(int|string $id, array $data): ?PersonalSupplier
+    {
+        $supplier = PersonalSupplier::find($id);
+        if ($supplier) {
+            $supplier->update($data);
+            return $supplier;
+        }
+        return null;
+    }
+
+    public function delete(int|string $id): bool
+    {
+        $supplier = PersonalSupplier::find($id);
+        if ($supplier) {
+            return (bool) $supplier->delete();
+        }
+        return false;
+    }
 }
