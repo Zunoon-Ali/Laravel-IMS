@@ -9,4 +9,6 @@ interface PersonalCustomerRepositoryInterface
 {
     public function all(): Collection;
     public function create(array $data): PersonalCustomer;
+    public function update(int|string $id, array $data): ?PersonalCustomer;
+    public function delete(int|string $id): bool;
 }

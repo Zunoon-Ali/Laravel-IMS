@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ContainerController;
 use App\Http\Controllers\Api\PersonalNameController;
 use App\Http\Controllers\Api\SmallBaleController;
 use App\Http\Controllers\Api\BankController;
+use App\Http\Controllers\Api\AccountBalanceController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -49,6 +50,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/next-stock-invoice', [PersonalNameController::class, 'getNextStockInvoiceNo']);
         Route::get('/stock-entries', [PersonalNameController::class, 'getStockEntries']);
         Route::post('/stock-entries', [PersonalNameController::class, 'storeStockEntry']);
+        Route::put('/stock-entries/{id}', [PersonalNameController::class, 'updateStockEntry']);
+        Route::delete('/stock-entries/{id}', [PersonalNameController::class, 'destroyStockEntry']);
         Route::get('/payments-received', [PersonalNameController::class, 'getPaymentsReceived']);
         Route::post('/payments-received', [PersonalNameController::class, 'storePaymentReceived']);
         Route::get('/return-invoices', [PersonalNameController::class, 'getReturnInvoices']);
@@ -62,8 +65,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/suppliers/{id}', [PersonalNameController::class, 'destroySupplier']);
         Route::get('/customers', [PersonalNameController::class, 'getCustomers']);
         Route::post('/customers', [PersonalNameController::class, 'storeCustomer']);
+        Route::put('/customers/{id}', [PersonalNameController::class, 'updateCustomer']);
+        Route::delete('/customers/{id}', [PersonalNameController::class, 'destroyCustomer']);
+    });
 
-        Route::put('/stock-entries/{id}', [PersonalNameController::class, 'updateStockEntry']);
-        Route::delete('/stock-entries/{id}', [PersonalNameController::class, 'destroyStockEntry']);
+    // My Account Balance Routes
+    Route::prefix('account-balance')->group(function () {
+        Route::get('/overview/{companyId?}', [AccountBalanceController::class, 'getOverview']);
+        Route::get('/totals', [AccountBalanceController::class, 'getTotals']);
+        Route::get('/payments', [AccountBalanceController::class, 'getPayments']);
+        Route::get('/cheques', [AccountBalanceController::class, 'getCheques']);
+        Route::get('/cash', [AccountBalanceController::class, 'getCash']);
+        Route::get('/bank-cards', [AccountBalanceController::class, 'getBankCards']);
+        Route::get('/bank-transactions', [AccountBalanceController::class, 'getBankTransactions']);
+        Route::get('/payment/{invoiceNo}', [AccountBalanceController::class, 'getDetailedPayment']);
     });
 });

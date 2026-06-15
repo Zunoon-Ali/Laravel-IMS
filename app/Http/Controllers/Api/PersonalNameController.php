@@ -11,6 +11,7 @@ use App\Http\Requests\Api\Personal\StoreSupplierRequest;
 use App\Http\Requests\Api\Personal\UpdateSupplierRequest;
 use App\Http\Requests\Api\Personal\StoreCustomerRequest;
 use App\Http\Requests\Api\Personal\StorePaymentSentRequest;
+use App\Http\Requests\Api\Personal\UpdateCustomerRequest;
 use App\Http\Resources\PersonalStockEntryResource;
 use App\Http\Resources\PersonalPaymentReceivedResource;
 use App\Http\Resources\PersonalReturnInvoiceResource;
@@ -321,5 +322,42 @@ class PersonalNameController extends Controller
             'Customer created successfully',
             201
         );
+    }
+
+    /**
+     * Update an existing Personal Customer.
+     */
+    public function updateCustomer(UpdateCustomerRequest $request, $id): JsonResponse
+    {
+        try {
+            $customer = $this->customerRepo->update($id, $request->validated());
+            if (!$customer) {
+                return $this->errorResponse('Customer not found', 404);
+            }
+            return $this->successResponse(
+                new PersonalCustomerResource($customer),
+                'Customer updated successfully'
+            );
+        } catch (\Exception $e) {
+            Log::error('Customer update failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to update customer: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Delete a Personal Customer.
+     */
+    public function destroyCustomer($id): JsonResponse
+    {
+        try {
+            $deleted = $this->customerRepo->delete($id);
+            if (!$deleted) {
+                return $this->errorResponse('Customer not found or failed to delete', 404);
+            }
+            return $this->successResponse(null, 'Customer deleted successfully');
+        } catch (\Exception $e) {
+            Log::error('Customer delete failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to delete customer: ' . $e->getMessage(), 500);
+        }
     }
 }

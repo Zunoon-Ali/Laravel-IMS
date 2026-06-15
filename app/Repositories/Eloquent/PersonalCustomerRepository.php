@@ -17,4 +17,23 @@ class PersonalCustomerRepository implements PersonalCustomerRepositoryInterface
     {
         return PersonalCustomer::create($data);
     }
+
+    public function update(int|string $id, array $data): ?PersonalCustomer
+    {
+        $customer = PersonalCustomer::find($id);
+        if ($customer) {
+            $customer->update($data);
+            return $customer;
+        }
+        return null;
+    }
+
+    public function delete(int|string $id): bool
+    {
+        $customer = PersonalCustomer::find($id);
+        if ($customer) {
+            return (bool) $customer->delete();
+        }
+        return false;
+    }
 }
