@@ -39,8 +39,8 @@ class StorePaymentSentRequest extends FormRequest
             'onlines.*.bank_name' => 'required|string|max:255',
             'onlines.*.name' => 'required|string|max:255',
             'onlines.*.date' => 'required|date',
-            'onlines.*.from' => 'required|string|max:255',
-            'onlines.*.to' => 'required|string|max:255',
+            'onlines.*.from_name' => 'required|string|max:255',
+            'onlines.*.to_name' => 'required|string|max:255',
             'onlines.*.amount' => 'required|numeric|min:0',
         ];
     }

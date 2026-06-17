@@ -10,6 +10,8 @@ use App\Models\PersonalStockEntry;
 use App\Models\PersonalPaymentReceived;
 use App\Models\PersonalReturnInvoice;
 use App\Models\PersonalPaymentSent;
+use App\Models\Bank;
+use App\Models\BankLedger;
 use App\Repositories\Contracts\PersonalStockRepositoryInterface;
 use App\Repositories\Contracts\PersonalPaymentRepositoryInterface;
 use App\Repositories\Contracts\PersonalReturnRepositoryInterface;
@@ -125,18 +127,18 @@ class PersonalService
     }
 
     /**
-     * Get auto-generated next Invoice Number.
+     * Get auto-generated next Invoice Number with SAL prefix (Sales).
      */
     public function generateNextInvoiceNo(): string
     {
         $latest = $this->paymentRepo->getLatest();
         if ($latest) {
-            preg_match('/INV-(\d+)/', $latest->invoice_no, $matches);
+            preg_match('/SAL-(\d+)/', $latest->invoice_no, $matches);
             $nextNum = isset($matches[1]) ? ((int) $matches[1]) + 1 : 10001;
         } else {
             $nextNum = 10001;
         }
-        return 'INV-' . $nextNum;
+        return 'SAL-' . $nextNum;
     }
 
     /**
@@ -154,6 +156,7 @@ class PersonalService
 
             $payment = $this->paymentRepo->create($paymentData);
 
+            // Create ledger entries for cheques (credit to bank)
             foreach ($dto->cheques as $cheque) {
                 $payment->cheques()->create([
                     'bank_name' => $cheque['bank_name'],
@@ -162,8 +165,22 @@ class PersonalService
                     'to_name' => $cheque['to_name'],
                     'amount' => $cheque['amount'],
                 ]);
+
+                // Create bank ledger entry
+                $this->createBankLedgerEntry(
+                    $cheque['bank_name'],
+                    'credit',
+                    'cheque',
+                    $cheque['amount'],
+                    'Payment Received - Cheque',
+                    $invoiceNo,
+                    'payment_received',
+                    $payment->id,
+                    $dto->dateReceived
+                );
             }
 
+            // Create ledger entries for online payments (credit to bank)
             foreach ($dto->onlines as $online) {
                 $payment->onlines()->create([
                     'bank_name' => $online['bank_name'],
@@ -173,6 +190,19 @@ class PersonalService
                     'to_name' => $online['to'],
                     'amount' => $online['amount'],
                 ]);
+
+                // Create bank ledger entry
+                $this->createBankLedgerEntry(
+                    $online['bank_name'],
+                    'credit',
+                    'online',
+                    $online['amount'],
+                    'Payment Received - Online',
+                    $invoiceNo,
+                    'payment_received',
+                    $payment->id,
+                    $dto->dateReceived
+                );
             }
 
             // Dispatch payment success event
@@ -205,18 +235,18 @@ class PersonalService
     }
 
     /**
-     * Get auto-generated next Payment Sent Invoice Number.
+     * Get auto-generated next Payment Sent Invoice Number with PAS prefix.
      */
     public function generateNextPaymentSentInvoiceNo(): string
     {
         $latest = $this->paymentSentRepo->getLatest();
         if ($latest) {
-            preg_match('/INV-(\d+)/', $latest->invoice_no, $matches);
+            preg_match('/PAS-(\d+)/', $latest->invoice_no, $matches);
             $nextNum = isset($matches[1]) ? ((int) $matches[1]) + 1 : 10001;
         } else {
             $nextNum = 10001;
         }
-        return 'INV-' . $nextNum;
+        return 'PAS-' . $nextNum;
     }
 
     /**
@@ -233,6 +263,7 @@ class PersonalService
 
             $payment = $this->paymentSentRepo->create($paymentData);
 
+            // Create ledger entries for cheques (debit from bank)
             foreach ($dto->cheques as $cheque) {
                 $payment->cheques()->create([
                     'bank_name' => $cheque['bank_name'],
@@ -241,8 +272,22 @@ class PersonalService
                     'to_name' => $cheque['to_name'],
                     'amount' => $cheque['amount'],
                 ]);
+
+                // Create bank ledger entry
+                $this->createBankLedgerEntry(
+                    $cheque['bank_name'],
+                    'debit',
+                    'cheque',
+                    $cheque['amount'],
+                    'Payment Sent - Cheque',
+                    $invoiceNo,
+                    'payment_sent',
+                    $payment->id,
+                    $dto->dateSent
+                );
             }
 
+            // Create ledger entries for online payments (debit from bank)
             foreach ($dto->onlines as $online) {
                 $payment->onlines()->create([
                     'bank_name' => $online['bank_name'],
@@ -252,9 +297,66 @@ class PersonalService
                     'to_name' => $online['to'],
                     'amount' => $online['amount'],
                 ]);
+
+                // Create bank ledger entry
+                $this->createBankLedgerEntry(
+                    $online['bank_name'],
+                    'debit',
+                    'online',
+                    $online['amount'],
+                    'Payment Sent - Online',
+                    $invoiceNo,
+                    'payment_sent',
+                    $payment->id,
+                    $dto->dateSent
+                );
             }
 
             return $payment;
         });
+    }
+
+    /**
+     * Create a bank ledger entry with running balance calculation.
+     */
+    protected function createBankLedgerEntry(
+        string $bankName,
+        string $transactionType,
+        string $paymentType,
+        float $amount,
+        string $description,
+        ?string $invoiceNo,
+        ?string $referenceType,
+        ?int $referenceId,
+        string $transactionDate
+    ): void {
+        // Find bank by name
+        $bank = Bank::where('bank_name', $bankName)->first();
+        if (!$bank) {
+            return; // Skip if bank doesn't exist
+        }
+
+        // Get current balance from latest ledger entry or bank's opening balance
+        $latestEntry = $bank->ledger()->latest()->first();
+        $currentBalance = $latestEntry ? $latestEntry->balance_after : (float) $bank->balance;
+
+        // Calculate new balance
+        $newBalance = $transactionType === 'credit' 
+            ? $currentBalance + $amount 
+            : $currentBalance - $amount;
+
+        // Create ledger entry
+        BankLedger::create([
+            'bank_id' => $bank->id,
+            'invoice_no' => $invoiceNo,
+            'transaction_type' => $transactionType,
+            'payment_type' => $paymentType,
+            'amount' => $amount,
+            'balance_after' => $newBalance,
+            'description' => $description,
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
+            'transaction_date' => $transactionDate,
+        ]);
     }
 }

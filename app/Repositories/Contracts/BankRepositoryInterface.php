@@ -11,4 +11,5 @@ interface BankRepositoryInterface
     public function create(array $data): Bank;
     public function update(int|string $id, array $data): ?Bank;
     public function delete(int|string $id): bool;
+    public function findByBankName(string $bankName): ?Bank;
 }

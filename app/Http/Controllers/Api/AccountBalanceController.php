@@ -197,16 +197,14 @@ class AccountBalanceController extends Controller
     }
 
     /**
-     * Get bank cards with computed balance from online transactions.
+     * Get bank cards with computed balance from ledger.
      */
     public function getBankCards(): JsonResponse
     {
         try {
             $banks = Bank::all()->map(function ($bank) {
-                // Compute balance: sum of online received - sum of online sent for this bank
-                $received = (float) PersonalPaymentOnline::where('bank_name', $bank->bank_name)->sum('amount');
-                $sent     = (float) PersonalPaymentSentOnline::where('bank_name', $bank->bank_name)->sum('amount');
-                $balance  = max(0, $received - $sent);
+                // Get balance from ledger (more accurate than computing on the fly)
+                $balance = $bank->current_balance;
 
                 return [
                     'id'       => (string) $bank->id,
@@ -225,46 +223,31 @@ class AccountBalanceController extends Controller
     }
 
     /**
-     * Get all bank transactions from online payments (received + sent).
+     * Get all bank transactions from ledger with running balance.
      */
     public function getBankTransactions(): JsonResponse
     {
         try {
-            $received = PersonalPaymentOnline::with('paymentReceived')->latest('id')->get()->map(function ($o) {
-                return [
-                    'id'             => $o->id,
-                    'date'           => $o->payment_date ?? optional($o->paymentReceived?->date_received)->format('d-M-Y') ?? now()->format('d-M-Y'),
-                    'name'           => $o->paymentReceived?->customer_name ?? $o->from_name ?? '—',
-                    'invoiceNo'      => $o->paymentReceived?->invoice_no ?? '—',
-                    'type'           => 'Online',
-                    'description'    => 'Online payment received | Bank: ' . $o->bank_name,
-                    'debit'          => (float) $o->amount,
-                    'credit'         => 0,
-                    'status'         => 'Received',
-                    'totalBalance'   => (float) $o->amount,
-                    'openingBalance' => 0,
-                ];
-            });
+            $transactions = \App\Models\BankLedger::with('bank')
+                ->latest('id')
+                ->get()
+                ->map(function ($ledger) {
+                    return [
+                        'id'             => $ledger->id,
+                        'date'           => optional($ledger->transaction_date)->format('d-M-Y') ?? now()->format('d-M-Y'),
+                        'name'           => $ledger->bank->bank_name,
+                        'invoiceNo'      => $ledger->invoice_no ?? '—',
+                        'type'           => ucfirst($ledger->payment_type),
+                        'description'    => $ledger->description ?? ucfirst($ledger->transaction_type) . ' transaction',
+                        'debit'          => $ledger->transaction_type === 'debit' ? (float) $ledger->amount : 0,
+                        'credit'         => $ledger->transaction_type === 'credit' ? (float) $ledger->amount : 0,
+                        'status'         => ucfirst($ledger->transaction_type),
+                        'totalBalance'   => (float) $ledger->balance_after,
+                        'openingBalance' => (float) $ledger->balance_after - ($ledger->transaction_type === 'credit' ? $ledger->amount : -$ledger->amount),
+                    ];
+                });
 
-            $sent = PersonalPaymentSentOnline::with('paymentSent')->latest('id')->get()->map(function ($o) {
-                return [
-                    'id'             => $o->id + 100000,
-                    'date'           => optional($o->payment_date)->format('d-M-Y') ?? optional($o->paymentSent?->date_sent)->format('d-M-Y') ?? now()->format('d-M-Y'),
-                    'name'           => $o->paymentSent?->customer_name ?? $o->from_name ?? '—',
-                    'invoiceNo'      => $o->paymentSent?->invoice_no ?? '—',
-                    'type'           => 'Online',
-                    'description'    => 'Online payment sent | Bank: ' . $o->bank_name,
-                    'debit'          => 0,
-                    'credit'         => (float) $o->amount,
-                    'status'         => 'Sent',
-                    'totalBalance'   => (float) $o->amount,
-                    'openingBalance' => 0,
-                ];
-            });
-
-            $all = $received->concat($sent)->values();
-
-            return $this->successResponse($all, 'Bank transactions retrieved');
+            return $this->successResponse($transactions, 'Bank transactions retrieved');
         } catch (\Exception $e) {
             Log::error('AccountBalance getBankTransactions failed: ' . $e->getMessage());
             return $this->errorResponse('Failed to retrieve bank transactions', 500);

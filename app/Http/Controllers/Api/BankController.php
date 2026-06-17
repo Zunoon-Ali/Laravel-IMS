@@ -38,6 +38,13 @@ class BankController extends Controller
     {
         try {
             $data = $request->validated();
+            
+            // Check if bank with same name already exists
+            $existingBank = $this->bankRepo->findByBankName($data['bankName']);
+            if ($existingBank) {
+                return $this->errorResponse('Bank with this name already exists', 409);
+            }
+            
             // Map request camelCase to DB snake_case
             $mappedData = [
                 'bank_name' => $data['bankName'],

@@ -36,4 +36,9 @@ class BankRepository implements BankRepositoryInterface
         }
         return false;
     }
+
+    public function findByBankName(string $bankName): ?Bank
+    {
+        return Bank::where('bank_name', $bankName)->first();
+    }
 }
