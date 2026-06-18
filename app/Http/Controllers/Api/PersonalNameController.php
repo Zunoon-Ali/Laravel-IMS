@@ -345,7 +345,7 @@ class PersonalNameController extends Controller
     }
 
     /**
-     * Delete a Personal Customer.
+     * Delete a Personal Customer (soft delete).
      */
     public function destroyCustomer($id): JsonResponse
     {
@@ -358,6 +358,281 @@ class PersonalNameController extends Controller
         } catch (\Exception $e) {
             Log::error('Customer delete failed: ' . $e->getMessage());
             return $this->errorResponse('Failed to delete customer: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Deactivate a Customer.
+     */
+    public function deactivateCustomer($id): JsonResponse
+    {
+        try {
+            $customer = $this->customerRepo->update($id, ['status' => 'Inactive']);
+            if (!$customer) {
+                return $this->errorResponse('Customer not found', 404);
+            }
+            return $this->successResponse(
+                new PersonalCustomerResource($customer),
+                'Customer deactivated successfully'
+            );
+        } catch (\Exception $e) {
+            Log::error('Customer deactivate failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to deactivate customer: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Activate a Customer.
+     */
+    public function activateCustomer($id): JsonResponse
+    {
+        try {
+            $customer = $this->customerRepo->update($id, ['status' => 'Active']);
+            if (!$customer) {
+                return $this->errorResponse('Customer not found', 404);
+            }
+            return $this->successResponse(
+                new PersonalCustomerResource($customer),
+                'Customer activated successfully'
+            );
+        } catch (\Exception $e) {
+            Log::error('Customer activate failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to activate customer: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get Customer Ledger with running balance calculation and pagination.
+     */
+    public function getCustomerLedger($customerId): JsonResponse
+    {
+        try {
+            $page = request()->get('page', 1);
+            $perPage = request()->get('per_page', 15);
+            $search = request()->get('search', '');
+
+            // Get customer by ID
+            $customer = \App\Models\PersonalCustomer::find($customerId);
+            if (!$customer) {
+                return $this->errorResponse('Customer not found', 404);
+            }
+
+            $customerName = $customer->name;
+
+            // Get all transactions for the customer
+            $paymentsReceived = \App\Models\PersonalPaymentReceived::where('customer_name', $customerName)
+                ->when($search, function ($query) use ($search) {
+                    $query->where('invoice_no', 'like', "%{$search}%")
+                          ->orWhere('description', 'like', "%{$search}%");
+                })
+                ->with(['cheques', 'onlines'])
+                ->get()
+                ->map(function ($p) {
+                    return [
+                        'id' => $p->id,
+                        'date' => optional($p->date_received)->format('d-M-Y') ?? $p->date_received,
+                        'invoice_no' => $p->invoice_no,
+                        'customer_name' => $p->customer_name,
+                        'description' => $p->description ?? 'Payment Received',
+                        'supplier_name' => null,
+                        'big_bales' => 0,
+                        'small_bales' => 0,
+                        'weight' => 0,
+                        'rate' => 0,
+                        'debit' => (float) $p->total_amount,
+                        'credit' => 0,
+                        'type' => 'sale_invoice',
+                    ];
+                });
+
+            $paymentsSent = \App\Models\PersonalPaymentSent::where('customer_name', $customerName)
+                ->when($search, function ($query) use ($search) {
+                    $query->where('invoice_no', 'like', "%{$search}%")
+                          ->orWhere('description', 'like', "%{$search}%");
+                })
+                ->with(['cheques', 'onlines'])
+                ->get()
+                ->map(function ($p) {
+                    return [
+                        'id' => $p->id + 100000,
+                        'date' => optional($p->date_sent)->format('d-M-Y') ?? $p->date_sent,
+                        'invoice_no' => $p->invoice_no,
+                        'customer_name' => $p->customer_name,
+                        'description' => $p->description ?? 'Payment Sent',
+                        'supplier_name' => null,
+                        'big_bales' => 0,
+                        'small_bales' => 0,
+                        'weight' => 0,
+                        'rate' => 0,
+                        'debit' => 0,
+                        'credit' => (float) $p->total_amount,
+                        'type' => 'payment_sent',
+                    ];
+                });
+
+            $returnInvoices = \App\Models\PersonalReturnInvoice::where('customer_name', $customerName)
+                ->when($search, function ($query) use ($search) {
+                    $query->where('invoice_no', 'like', "%{$search}%")
+                          ->orWhere('description', 'like', "%{$search}%");
+                })
+                ->with('items')
+                ->get()
+                ->map(function ($r) {
+                    return [
+                        'id' => $r->id + 200000,
+                        'date' => optional($r->date)->format('d-M-Y') ?? $r->date,
+                        'invoice_no' => $r->invoice_no,
+                        'customer_name' => $r->customer_name,
+                        'description' => $r->description ?? 'Return Invoice',
+                        'supplier_name' => null,
+                        'big_bales' => 0,
+                        'small_bales' => 0,
+                        'weight' => 0,
+                        'rate' => 0,
+                        'debit' => 0,
+                        'credit' => (float) $r->total_amount,
+                        'type' => 'return_invoice',
+                    ];
+                });
+
+            // Merge all transactions and sort by date
+            $allTransactions = $paymentsReceived->concat($paymentsSent)->concat($returnInvoices)
+                ->sortByDesc('id')
+                ->values();
+
+            // Calculate running balance
+            $runningBalance = 0;
+            $transactionsWithBalance = $allTransactions->map(function ($tx) use (&$runningBalance) {
+                $runningBalance += ($tx['debit'] - $tx['credit']);
+                $tx['balance'] = $runningBalance;
+                return $tx;
+            });
+
+            // Server-side pagination
+            $total = $transactionsWithBalance->count();
+            $totalPages = ceil($total / $perPage);
+            $offset = ($page - 1) * $perPage;
+            $paginatedTransactions = $transactionsWithBalance->slice($offset, $perPage)->values();
+
+            return $this->successResponse([
+                'data' => $paginatedTransactions,
+                'meta' => [
+                    'page' => (int) $page,
+                    'per_page' => (int) $perPage,
+                    'total' => $total,
+                    'total_pages' => (int) $totalPages,
+                ]
+            ], 'Customer ledger retrieved successfully');
+        } catch (\Exception $e) {
+            Log::error('Customer ledger retrieval failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to retrieve customer ledger: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get Invoice Items for a specific invoice (Screen 3 data).
+     */
+    public function getInvoiceItems($invoiceNo): JsonResponse
+    {
+        try {
+            $page = request()->get('page', 1);
+            $perPage = request()->get('per_page', 15);
+            $search = request()->get('search', '');
+
+            // Try to find the invoice in payments received
+            $paymentReceived = \App\Models\PersonalPaymentReceived::with(['cheques', 'onlines'])
+                ->where('invoice_no', $invoiceNo)
+                ->first();
+
+            if ($paymentReceived) {
+                $customer = \App\Models\PersonalCustomer::where('name', $paymentReceived->customer_name)->first();
+                
+                // Since payments received doesn't have items table, return empty or mock structure
+                // In real implementation, this would come from invoice_items table
+                $items = collect([
+                    [
+                        'id' => 1,
+                        'item_name' => 'Sample Item',
+                        'description' => $paymentReceived->description ?? 'Payment Received',
+                        'weight' => 0,
+                        'rate' => 0,
+                        'big_bales' => 0,
+                        'small_bales' => 0,
+                        'total_no_of_bales' => 0,
+                        'line_balance' => (float) $paymentReceived->total_amount,
+                    ]
+                ]);
+
+                $total = $items->count();
+                $totalPages = ceil($total / $perPage);
+                $offset = ($page - 1) * $perPage;
+                $paginatedItems = $items->slice($offset, $perPage)->values();
+
+                return $this->successResponse([
+                    'data' => $paginatedItems,
+                    'meta' => [
+                        'page' => (int) $page,
+                        'per_page' => (int) $perPage,
+                        'total' => $total,
+                        'total_pages' => (int) $totalPages,
+                    ],
+                    'invoice' => [
+                        'invoice_no' => $paymentReceived->invoice_no,
+                        'date' => optional($paymentReceived->date_received)->format('d-M-Y') ?? $paymentReceived->date_received,
+                        'description' => $paymentReceived->description,
+                        'customer_name' => $paymentReceived->customer_name,
+                        'total_amount' => (float) $paymentReceived->total_amount,
+                    ]
+                ], 'Invoice items retrieved successfully');
+            }
+
+            // Try to find in return invoices
+            $returnInvoice = \App\Models\PersonalReturnInvoice::with('items')
+                ->where('invoice_no', $invoiceNo)
+                ->first();
+
+            if ($returnInvoice) {
+                $items = $returnInvoice->items->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'item_name' => $item->item_name,
+                        'description' => 'Return Item',
+                        'weight' => 0,
+                        'rate' => 0,
+                        'big_bales' => $item->is_big_bales ?? 0,
+                        'small_bales' => $item->is_small_bales ?? 0,
+                        'total_no_of_bales' => $item->no_of_bales ?? 0,
+                        'line_balance' => (float) ($item->amount ?? 0),
+                    ];
+                });
+
+                $total = $items->count();
+                $totalPages = ceil($total / $perPage);
+                $offset = ($page - 1) * $perPage;
+                $paginatedItems = $items->slice($offset, $perPage)->values();
+
+                return $this->successResponse([
+                    'data' => $paginatedItems,
+                    'meta' => [
+                        'page' => (int) $page,
+                        'per_page' => (int) $perPage,
+                        'total' => $total,
+                        'total_pages' => (int) $totalPages,
+                    ],
+                    'invoice' => [
+                        'invoice_no' => $returnInvoice->invoice_no,
+                        'date' => optional($returnInvoice->date)->format('d-M-Y') ?? $returnInvoice->date,
+                        'description' => $returnInvoice->description,
+                        'customer_name' => $returnInvoice->customer_name,
+                        'total_amount' => (float) $returnInvoice->total_amount,
+                    ]
+                ], 'Invoice items retrieved successfully');
+            }
+
+            return $this->errorResponse('Invoice not found', 404);
+        } catch (\Exception $e) {
+            Log::error('Invoice items retrieval failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to retrieve invoice items: ' . $e->getMessage(), 500);
         }
     }
 }

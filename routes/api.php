@@ -67,6 +67,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/customers', [PersonalNameController::class, 'storeCustomer']);
         Route::put('/customers/{id}', [PersonalNameController::class, 'updateCustomer']);
         Route::delete('/customers/{id}', [PersonalNameController::class, 'destroyCustomer']);
+        Route::patch('/customers/{id}/deactivate', [PersonalNameController::class, 'deactivateCustomer']);
+        Route::patch('/customers/{id}/activate', [PersonalNameController::class, 'activateCustomer']);
+        Route::get('/customer-ledger/{customerId}', [PersonalNameController::class, 'getCustomerLedger']);
+        Route::get('/invoice-items/{invoiceNo}', [PersonalNameController::class, 'getInvoiceItems']);
     });
 
     // My Account Balance Routes

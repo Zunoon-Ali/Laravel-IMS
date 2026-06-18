@@ -205,11 +205,58 @@ class PersonalService
                 );
             }
 
+            // Stock deduction logic for sale invoice items
+            if (isset($dto->items) && is_array($dto->items)) {
+                foreach ($dto->items as $item) {
+                    $this->deductStockFromInventory($item);
+                }
+            }
+
             // Dispatch payment success event
             event(new PersonalPaymentRecorded($payment));
 
             return $payment;
         });
+    }
+
+    /**
+     * Deduct stock from inventory based on sale invoice items.
+     */
+    protected function deductStockFromInventory(array $item): void
+    {
+        $itemName = $item['item_name'] ?? null;
+        $smallBales = $item['small_bales'] ?? 0;
+        $bigBales = $item['big_bales'] ?? 0;
+
+        if (!$itemName) {
+            return;
+        }
+
+        // Deduct from Small Bales inventory
+        if ($smallBales > 0) {
+            $smallBale = \App\Models\SmallBale::where('name', $itemName)->first();
+            if ($smallBale) {
+                $currentStock = (int) $smallBale->stock;
+                $newStock = max(0, $currentStock - $smallBales);
+                $smallBale->update([
+                    'stock' => $newStock,
+                    'sale' => ($smallBale->sale ?? 0) + $smallBales
+                ]);
+            }
+        }
+
+        // Deduct from Big Bales inventory (if exists)
+        if ($bigBales > 0) {
+            $bigBale = \App\Models\BigBale::where('name', $itemName)->first();
+            if ($bigBale) {
+                $currentStock = (int) $bigBale->stock;
+                $newStock = max(0, $currentStock - $bigBales);
+                $bigBale->update([
+                    'stock' => $newStock,
+                    'sale' => ($bigBale->sale ?? 0) + $bigBales
+                ]);
+            }
+        }
     }
 
     /**
