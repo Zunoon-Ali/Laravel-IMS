@@ -21,6 +21,7 @@ class UpdateCustomerRequest extends FormRequest
             'city'            => 'nullable|string|max:255',
             'address'         => 'nullable|string',
             'opening_balance' => 'nullable|numeric',
+            'balance_type'    => 'required|in:debit,credit',
             'notes'           => 'nullable|string',
         ];
     }
