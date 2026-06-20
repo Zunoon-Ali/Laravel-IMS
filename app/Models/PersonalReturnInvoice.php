@@ -12,6 +12,7 @@ class PersonalReturnInvoice extends Model
 
     protected $fillable = [
         'invoice_no',
+        'customer_id',
         'customer_name',
         'to_name',
         'date_returned',

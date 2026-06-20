@@ -27,6 +27,11 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    // Profile Routes
+    Route::get('/user/profile', [AuthController::class, 'profile']);
+    Route::put('/user/profile', [AuthController::class, 'updateProfile']);
+    Route::post('/user/profile/image', [AuthController::class, 'uploadProfileImage']);
+
     // Container Routes
     Route::apiResource('containers', ContainerController::class);
     Route::get('/opened-bales', [ContainerController::class, 'getOpenedBales']);
@@ -42,6 +47,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/productions/batch', [SmallBaleController::class, 'storeProductionBatch']);
 
     // Bank Routes
+    Route::patch('/banks/{id}/status', [BankController::class, 'toggleStatus']);
+    Route::post('/banks/{id}/recalculate-balance', [BankController::class, 'recalculateBalance']);
     Route::apiResource('banks', BankController::class);
 
     // Personal Name Module Routes
@@ -75,6 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // My Account Balance Routes
     Route::prefix('account-balance')->group(function () {
+        Route::get('/ledger/{bankId}', [AccountBalanceController::class, 'getBankLedger']);
         Route::get('/overview/{companyId?}', [AccountBalanceController::class, 'getOverview']);
         Route::get('/totals', [AccountBalanceController::class, 'getTotals']);
         Route::get('/payments', [AccountBalanceController::class, 'getPayments']);

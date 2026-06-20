@@ -385,7 +385,7 @@ class PersonalService
 
         // Get current balance from latest ledger entry or bank's opening balance
         $latestEntry = $bank->ledger()->latest()->first();
-        $currentBalance = $latestEntry ? $latestEntry->balance_after : (float) $bank->balance;
+        $currentBalance = $latestEntry ? $latestEntry->balance_after : (float) $bank->opening_balance;
 
         // Calculate new balance
         $newBalance = $transactionType === 'credit' 

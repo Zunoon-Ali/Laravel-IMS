@@ -54,4 +54,22 @@ class BankLedger extends Model
     {
         return $query->where('transaction_type', 'debit');
     }
+
+    /**
+     * Booted function to attach model event handlers.
+     */
+    protected static function booted()
+    {
+        static::saved(function ($ledger) {
+            if ($ledger->bank) {
+                $ledger->bank->recalculateBalance();
+            }
+        });
+
+        static::deleted(function ($ledger) {
+            if ($ledger->bank) {
+                $ledger->bank->recalculateBalance();
+            }
+        });
+    }
 }

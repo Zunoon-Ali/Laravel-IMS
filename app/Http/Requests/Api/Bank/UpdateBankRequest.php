@@ -22,9 +22,20 @@ class UpdateBankRequest extends FormRequest
         return [
             'bankName' => 'required|string|max:255',
             'logo' => 'nullable|string|max:1000',
-            'accountNumber' => 'nullable|string|max:255',
-            'balance' => 'required|numeric',
+            'accountNumber' => 'nullable|string|max:30|regex:/^[a-zA-Z0-9-]+$/',
+            'balance' => 'required|numeric|min:0',
             'branch' => 'nullable|string|max:255',
+        ];
+    }
+
+    /**
+     * Get custom messages for validator errors.
+     */
+    public function messages(): array
+    {
+        return [
+            'accountNumber.regex' => 'The account number must be alphanumeric and contain no special characters except dashes.',
+            'balance.min' => 'Opening balance must be positive or zero.',
         ];
     }
 }

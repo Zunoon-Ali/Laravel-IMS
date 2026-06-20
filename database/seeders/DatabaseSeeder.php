@@ -27,6 +27,8 @@ class DatabaseSeeder extends Seeder
         } else {
             $this->command->info('ℹ️  Admin user already exists — skipped.');
         }
+
+        $this->call(PersonalModuleSeeder::class);
     }
 }
 
