@@ -425,23 +425,31 @@ class PersonalNameController extends Controller
                     $query->where('invoice_no', 'like', "%{$search}%")
                           ->orWhere('description', 'like', "%{$search}%");
                 })
-                ->with(['cheques', 'onlines'])
+                ->with(['cheques', 'onlines', 'items'])
                 ->get()
                 ->map(function ($p) {
+                    $isSal = str_starts_with($p->invoice_no, 'SAL');
+                    
+                    // Sum big bales, small bales, weight and compute rate
+                    $bigBales = $p->items ? $p->items->where('bale_type', 'big')->sum('no_of_bales') : 0;
+                    $smallBales = $p->items ? $p->items->where('bale_type', 'small')->sum('no_of_bales') : 0;
+                    $weight = $p->items ? $p->items->sum('weight') : 0;
+                    $rate = ($p->items && $p->items->first()) ? (float) $p->items->first()->rate : 0;
+
                     return [
                         'id' => $p->id,
                         'date' => optional($p->date_received)->format('d-M-Y') ?? $p->date_received,
-                        'invoice_no' => $p->invoice_no,
-                        'customer_name' => $p->customer_name,
-                        'description' => $p->description ?? 'Payment Received',
-                        'supplier_name' => null,
-                        'big_bales' => 0,
-                        'small_bales' => 0,
-                        'weight' => 0,
-                        'rate' => 0,
-                        'debit' => (float) $p->total_amount,
-                        'credit' => 0,
-                        'type' => 'sale_invoice',
+                        'invoiceNo' => $p->invoice_no,
+                        'customerName' => $p->customer_name,
+                        'description' => $p->description ?? ($isSal ? 'Sale Invoice' : 'Payment Received'),
+                        'supplierName' => $p->to_name,
+                        'bigBales' => $bigBales,
+                        'smallBales' => $smallBales,
+                        'weightKgs' => $weight,
+                        'rate' => $rate,
+                        'debit' => $isSal ? (float) $p->total_amount : 0.0,
+                        'credit' => !$isSal ? (float) $p->total_amount : 0.0,
+                        'type' => $isSal ? 'sale_invoice' : 'payment_received',
                     ];
                 });
 
@@ -456,15 +464,15 @@ class PersonalNameController extends Controller
                     return [
                         'id' => $p->id + 100000,
                         'date' => optional($p->date_sent)->format('d-M-Y') ?? $p->date_sent,
-                        'invoice_no' => $p->invoice_no,
-                        'customer_name' => $p->customer_name,
+                        'invoiceNo' => $p->invoice_no,
+                        'customerName' => $p->customer_name,
                         'description' => $p->description ?? 'Payment Sent',
-                        'supplier_name' => null,
-                        'big_bales' => 0,
-                        'small_bales' => 0,
-                        'weight' => 0,
+                        'supplierName' => $p->to_name,
+                        'bigBales' => 0,
+                        'smallBales' => 0,
+                        'weightKgs' => 0,
                         'rate' => 0,
-                        'debit' => 0,
+                        'debit' => 0.0,
                         'credit' => (float) $p->total_amount,
                         'type' => 'payment_sent',
                     ];
@@ -480,16 +488,16 @@ class PersonalNameController extends Controller
                 ->map(function ($r) {
                     return [
                         'id' => $r->id + 200000,
-                        'date' => optional($r->date)->format('d-M-Y') ?? $r->date,
-                        'invoice_no' => $r->invoice_no,
-                        'customer_name' => $r->customer_name,
+                        'date' => optional($r->date_returned)->format('d-M-Y') ?? $r->date_returned,
+                        'invoiceNo' => $r->invoice_no,
+                        'customerName' => $r->customer_name,
                         'description' => $r->description ?? 'Return Invoice',
-                        'supplier_name' => null,
-                        'big_bales' => 0,
-                        'small_bales' => 0,
-                        'weight' => 0,
+                        'supplierName' => $r->to_name,
+                        'bigBales' => $r->items ? $r->items->where('is_big_bales', true)->sum('no_of_bales') : 0,
+                        'smallBales' => $r->items ? $r->items->where('is_small_bales', true)->sum('no_of_bales') : 0,
+                        'weightKgs' => 0,
                         'rate' => 0,
-                        'debit' => 0,
+                        'debit' => 0.0,
                         'credit' => (float) $r->total_amount,
                         'type' => 'return_invoice',
                     ];
@@ -503,6 +511,7 @@ class PersonalNameController extends Controller
             // Calculate running balance
             $runningBalance = 0;
             $transactionsWithBalance = $allTransactions->map(function ($tx) use (&$runningBalance) {
+                // debit is plus, credit is minus
                 $runningBalance += ($tx['debit'] - $tx['credit']);
                 $tx['balance'] = $runningBalance;
                 return $tx;
@@ -540,28 +549,41 @@ class PersonalNameController extends Controller
             $search = request()->get('search', '');
 
             // Try to find the invoice in payments received
-            $paymentReceived = \App\Models\PersonalPaymentReceived::with(['cheques', 'onlines'])
+            $paymentReceived = \App\Models\PersonalPaymentReceived::with(['cheques', 'onlines', 'items'])
                 ->where('invoice_no', $invoiceNo)
                 ->first();
 
             if ($paymentReceived) {
-                $customer = \App\Models\PersonalCustomer::where('name', $paymentReceived->customer_name)->first();
-                
-                // Since payments received doesn't have items table, return empty or mock structure
-                // In real implementation, this would come from invoice_items table
-                $items = collect([
-                    [
-                        'id' => 1,
-                        'item_name' => 'Sample Item',
-                        'description' => $paymentReceived->description ?? 'Payment Received',
-                        'weight' => 0,
-                        'rate' => 0,
-                        'big_bales' => 0,
-                        'small_bales' => 0,
-                        'total_no_of_bales' => 0,
-                        'line_balance' => (float) $paymentReceived->total_amount,
-                    ]
-                ]);
+                $items = $paymentReceived->items->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'item_name' => $item->item_name,
+                        'description' => $item->bale_type === 'small' ? 'Small Bales Item' : 'Big Bales Item',
+                        'weight' => (float) $item->weight,
+                        'rate' => (float) $item->rate,
+                        'big_bales' => $item->bale_type === 'big' ? $item->no_of_bales : 0,
+                        'small_bales' => $item->bale_type === 'small' ? $item->no_of_bales : 0,
+                        'total_no_of_bales' => (int) $item->no_of_bales,
+                        'line_balance' => (float) $item->amount,
+                    ];
+                });
+
+                // If items are empty, but the invoice exists, return a default cash/payment row
+                if ($items->isEmpty()) {
+                    $items = collect([
+                        [
+                            'id' => 1,
+                            'item_name' => 'Payment Received',
+                            'description' => $paymentReceived->description ?? 'Payment Received via Cash/Cheque/Online',
+                            'weight' => 0.0,
+                            'rate' => 0.0,
+                            'big_bales' => 0,
+                            'small_bales' => 0,
+                            'total_no_of_bales' => 0,
+                            'line_balance' => (float) $paymentReceived->total_amount,
+                        ]
+                    ]);
+                }
 
                 $total = $items->count();
                 $totalPages = ceil($total / $perPage);
@@ -621,7 +643,7 @@ class PersonalNameController extends Controller
                     ],
                     'invoice' => [
                         'invoice_no' => $returnInvoice->invoice_no,
-                        'date' => optional($returnInvoice->date)->format('d-M-Y') ?? $returnInvoice->date,
+                        'date' => optional($returnInvoice->date_returned)->format('d-M-Y') ?? $returnInvoice->date_returned,
                         'description' => $returnInvoice->description,
                         'customer_name' => $returnInvoice->customer_name,
                         'total_amount' => (float) $returnInvoice->total_amount,
@@ -633,6 +655,37 @@ class PersonalNameController extends Controller
         } catch (\Exception $e) {
             Log::error('Invoice items retrieval failed: ' . $e->getMessage());
             return $this->errorResponse('Failed to retrieve invoice items: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Store Customer Sale Invoice (SAL) with items and deduct stock.
+     */
+    public function storeCustomerSaleInvoice(\Illuminate\Http\Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'customerName' => 'required|string',
+                'invoiceNo' => 'required|string',
+                'supplierName' => 'nullable|string',
+                'dateAdded' => 'nullable|string',
+                'description' => 'nullable|string',
+                'extraCharges' => 'nullable|numeric',
+                'smallBaleItems' => 'nullable|array',
+                'bigBaleItems' => 'nullable|array',
+                'totalAmountPayable' => 'required|numeric',
+            ]);
+
+            $payment = $this->personalService->storeCustomerSaleInvoice($validated);
+
+            return $this->successResponse(
+                new PersonalPaymentReceivedResource($payment->load(['cheques', 'onlines', 'items'])),
+                'Customer Sale Invoice generated successfully',
+                201
+            );
+        } catch (\Exception $e) {
+            Log::error('Customer sale invoice store failed: ' . $e->getMessage());
+            return $this->errorResponse($e->getMessage(), 422);
         }
     }
 }

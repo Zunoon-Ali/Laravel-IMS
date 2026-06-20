@@ -49,4 +49,12 @@ class PersonalPaymentReceived extends Model
     {
         return $this->hasMany(PersonalPaymentOnline::class, 'personal_payment_received_id');
     }
+
+    /**
+     * Get the individual items associated with this sales invoice.
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(PersonalPaymentReceivedItem::class, 'personal_payment_received_id');
+    }
 }

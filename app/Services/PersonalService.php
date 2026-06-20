@@ -225,8 +225,8 @@ class PersonalService
     protected function deductStockFromInventory(array $item): void
     {
         $itemName = $item['item_name'] ?? null;
-        $smallBales = $item['small_bales'] ?? 0;
-        $bigBales = $item['big_bales'] ?? 0;
+        $smallBales = (int) ($item['small_bales'] ?? 0);
+        $bigBales = (int) ($item['big_bales'] ?? 0);
 
         if (!$itemName) {
             return;
@@ -234,28 +234,32 @@ class PersonalService
 
         // Deduct from Small Bales inventory
         if ($smallBales > 0) {
-            $smallBale = \App\Models\SmallBale::where('name', $itemName)->first();
-            if ($smallBale) {
-                $currentStock = (int) $smallBale->stock;
-                $newStock = max(0, $currentStock - $smallBales);
-                $smallBale->update([
-                    'stock' => $newStock,
-                    'sale' => ($smallBale->sale ?? 0) + $smallBales
-                ]);
+            $smallBale = \App\Models\SmallBale::where('name', $itemName)
+                ->where('category', 'small-bales')
+                ->first();
+            if (!$smallBale || (int) $smallBale->stock < $smallBales) {
+                $stockCount = $smallBale ? $smallBale->stock : 0;
+                throw new \Exception("Warning: Insufficient stock for Small Bales item '{$itemName}'. Current stock is: {$stockCount}");
             }
+            $smallBale->update([
+                'stock' => $smallBale->stock - $smallBales,
+                'sale' => ($smallBale->sale ?? 0) + $smallBales
+            ]);
         }
 
         // Deduct from Big Bales inventory (if exists)
         if ($bigBales > 0) {
-            $bigBale = \App\Models\BigBale::where('name', $itemName)->first();
-            if ($bigBale) {
-                $currentStock = (int) $bigBale->stock;
-                $newStock = max(0, $currentStock - $bigBales);
-                $bigBale->update([
-                    'stock' => $newStock,
-                    'sale' => ($bigBale->sale ?? 0) + $bigBales
-                ]);
+            $bigBale = \App\Models\SmallBale::where('name', $itemName)
+                ->where('category', 'big-bales')
+                ->first();
+            if (!$bigBale || (int) $bigBale->stock < $bigBales) {
+                $stockCount = $bigBale ? $bigBale->stock : 0;
+                throw new \Exception("Warning: Insufficient stock for Big Bales item '{$itemName}'. Current stock is: {$stockCount}");
             }
+            $bigBale->update([
+                'stock' => $bigBale->stock - $bigBales,
+                'sale' => ($bigBale->sale ?? 0) + $bigBales
+            ]);
         }
     }
 
@@ -275,6 +279,32 @@ class PersonalService
                     'no_of_bales' => $item['no_of_bales'],
                     'amount' => $item['amount'],
                 ]);
+
+                // Wapas add to stock logic
+                $itemName = $item['item_name'];
+                $noOfBales = (int) $item['no_of_bales'];
+                
+                if ($item['small_bales']) {
+                    $smallBale = \App\Models\SmallBale::where('name', $itemName)
+                        ->where('category', 'small-bales')
+                        ->first();
+                    if ($smallBale) {
+                        $smallBale->update([
+                            'stock' => $smallBale->stock + $noOfBales,
+                            'sale' => max(0, ($smallBale->sale ?? 0) - $noOfBales)
+                        ]);
+                    }
+                } elseif ($item['big_bales']) {
+                    $bigBale = \App\Models\SmallBale::where('name', $itemName)
+                        ->where('category', 'big-bales')
+                        ->first();
+                    if ($bigBale) {
+                        $bigBale->update([
+                            'stock' => $bigBale->stock + $noOfBales,
+                            'sale' => max(0, ($bigBale->sale ?? 0) - $noOfBales)
+                        ]);
+                    }
+                }
             }
 
             return $returnInvoice;
@@ -302,6 +332,20 @@ class PersonalService
     public function storePaymentSent(PersonalPaymentSentDTO $dto): PersonalPaymentSent
     {
         return DB::transaction(function () use ($dto) {
+            // Check for insufficient balance first
+            foreach ($dto->cheques as $cheque) {
+                $bank = Bank::where('bank_name', $cheque['bank_name'])->first();
+                if ($bank && (float) $bank->current_balance < (float) $cheque['amount']) {
+                    throw new \Exception("Warning: Insufficient balance in bank '{$bank->bank_name}'. Current balance is: " . number_format($bank->current_balance, 2));
+                }
+            }
+            foreach ($dto->onlines as $online) {
+                $bank = Bank::where('bank_name', $online['bank_name'])->first();
+                if ($bank && (float) $bank->current_balance < (float) $online['amount']) {
+                    throw new \Exception("Warning: Insufficient balance in bank '{$bank->bank_name}'. Current balance is: " . number_format($bank->current_balance, 2));
+                }
+            }
+
             $invoiceNo = $this->generateNextPaymentSentInvoiceNo();
 
             $paymentData = array_merge($dto->toArray(), [
@@ -405,5 +449,108 @@ class PersonalService
             'reference_id' => $referenceId,
             'transaction_date' => $transactionDate,
         ]);
+
+        // Sync current_balance back to Bank table
+        $bank->update(['current_balance' => $newBalance]);
+    }
+
+    /**
+     * Store Customer Sale Invoice (SAL) and deduct stock.
+     */
+    public function storeCustomerSaleInvoice(array $data): PersonalPaymentReceived
+    {
+        return DB::transaction(function () use ($data) {
+            $customerName = $data['customerName'] ?? '';
+            $customer = \App\Models\PersonalCustomer::where('name', $customerName)->first();
+            $customerId = $customer ? $customer->id : null;
+
+            // Date formatting helper
+            $date = date('Y-m-d');
+            if (!empty($data['dateAdded'])) {
+                $parsed = strtotime($data['dateAdded']);
+                if ($parsed !== false) {
+                    $date = date('Y-m-d', $parsed);
+                }
+            }
+
+            // Create the PersonalPaymentReceived entry (which acts as the Sales Invoice SAL)
+            $payment = PersonalPaymentReceived::create([
+                'invoice_no' => $data['invoiceNo'],
+                'customer_id' => $customerId,
+                'customer_name' => $customerName,
+                'to_name' => $data['supplierName'] ?? '',
+                'date_received' => $date,
+                'cash_amount' => 0,
+                'total_amount' => $data['totalAmountPayable'] ?? 0,
+                'paid_amount' => 0,
+                'due_amount' => $data['totalAmountPayable'] ?? 0,
+                'description' => $data['description'] ?? 'Sale Invoice',
+            ]);
+
+            // Save Small Bale Items
+            if (!empty($data['smallBaleItems'])) {
+                foreach ($data['smallBaleItems'] as $item) {
+                    if (empty($item['itemName']) || empty($item['noOfBales'])) {
+                        continue;
+                    }
+                    $noOfBales = (int) $item['noOfBales'];
+                    $weight = (float) ($item['weight'] ?? 0);
+                    $rate = (float) ($item['rate'] ?? 0);
+                    
+                    // Frontend formula:
+                    $amount = $noOfBales * $rate * 0.05;
+
+                    $payment->items()->create([
+                        'bale_type' => 'small',
+                        'item_name' => $item['itemName'],
+                        'company' => $item['company'] ?? '',
+                        'no_of_bales' => $noOfBales,
+                        'weight' => $weight,
+                        'rate' => $rate,
+                        'amount' => $amount,
+                    ]);
+
+                    // Deduct stock
+                    $this->deductStockFromInventory([
+                        'item_name' => $item['itemName'],
+                        'small_bales' => $noOfBales,
+                        'big_bales' => 0,
+                    ]);
+                }
+            }
+
+            // Save Big Bale Items
+            if (!empty($data['bigBaleItems'])) {
+                foreach ($data['bigBaleItems'] as $item) {
+                    if (empty($item['itemName']) || empty($item['noOfBales'])) {
+                        continue;
+                    }
+                    $noOfBales = (int) $item['noOfBales'];
+                    $weight = (float) ($item['weight'] ?? 0);
+                    $rate = (float) ($item['rate'] ?? 0);
+                    
+                    // Frontend formula:
+                    $amount = $noOfBales * $rate * 0.04;
+
+                    $payment->items()->create([
+                        'bale_type' => 'big',
+                        'item_name' => $item['itemName'],
+                        'no_of_bales' => $noOfBales,
+                        'weight' => $weight,
+                        'rate' => $rate,
+                        'amount' => $amount,
+                    ]);
+
+                    // Deduct stock
+                    $this->deductStockFromInventory([
+                        'item_name' => $item['itemName'],
+                        'small_bales' => 0,
+                        'big_bales' => $noOfBales,
+                    ]);
+                }
+            }
+
+            return $payment;
+        });
     }
 }

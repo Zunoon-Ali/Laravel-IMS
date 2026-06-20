@@ -305,6 +305,17 @@ class PersonalModuleSeeder extends Seeder
                 'notes' => 'Payment settled in full.',
             ]);
 
+            // Seed items for this sales invoice
+            $payment->items()->create([
+                'bale_type' => $i % 2 === 0 ? 'small' : 'big',
+                'item_name' => $seededSmallBales[($i + 1) % count($seededSmallBales)]->name,
+                'company' => 'Chenab Cotton',
+                'no_of_bales' => rand(5, 20),
+                'weight' => rand(250, 1000),
+                'rate' => rand(20, 50) * 1000,
+                'amount' => $totalAmount,
+            ]);
+
             $selectedBank = $seededBanks[($i - 1) % count($seededBanks)];
 
             if ($i % 2 === 0) {

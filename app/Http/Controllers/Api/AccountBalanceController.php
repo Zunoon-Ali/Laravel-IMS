@@ -313,6 +313,8 @@ class AccountBalanceController extends Controller
                         'paymentMode' => $mode,
                         'debit' => 0,
                         'credit' => (float) $p->total_amount,
+                        'paymentReceived' => (float) $p->total_amount,
+                        'paymentSent' => 0.0,
                     ];
                 });
             }
@@ -344,35 +346,49 @@ class AccountBalanceController extends Controller
                         'paymentMode' => $mode,
                         'debit' => (float) $p->total_amount,
                         'credit' => 0,
+                        'paymentReceived' => 0.0,
+                        'paymentSent' => (float) $p->total_amount,
                     ];
                 });
             }
 
             $all = $received->concat($sent);
 
-            // Sorting
+            // 1. Sort chronologically (ascending date) to compute correct running balance
+            $allSortedAsc = $all->sortBy(function ($item) {
+                return $item['date'] ?? '';
+            })->values();
+
+            $runningBalance = 0;
+            $allWithRunningBalance = $allSortedAsc->map(function ($item) use (&$runningBalance) {
+                $runningBalance += ($item['paymentReceived'] - $item['paymentSent']);
+                $item['totalRemaining'] = $runningBalance;
+                return $item;
+            });
+
+            // 2. Sort by the requested parameter (defaults to date desc)
             $sortBy = $request->get('sort_by', 'date');
             $sortOrder = $request->get('sort_order', 'desc');
 
-            $all = $all->sortBy(function ($item) use ($sortBy) {
+            $sorted = $allWithRunningBalance->sortBy(function ($item) use ($sortBy) {
                 switch ($sortBy) {
                     case 'amount':
-                        return max($item['debit'], $item['credit']);
+                        return max($item['paymentReceived'], $item['paymentSent']);
                     case 'bank_name':
-                        return strtolower($item['bankName']);
+                        return strtolower($item['bankName'] ?? '');
                     case 'transaction_type':
-                        return $item['transactionType'];
+                        return $item['transactionType'] ?? '';
                     case 'date':
                     default:
-                        return $item['date'];
+                        return $item['date'] ?? '';
                 }
             }, SORT_REGULAR, $sortOrder === 'desc')->values();
 
             // Pagination
             $page = (int) $request->get('page', 1);
-            $perPage = (int) $request->get('per_page', 25);
-            $total = $all->count();
-            $paginatedItems = $all->slice(($page - 1) * $perPage, $perPage)->values();
+            $perPage = (int) $request->get('per_page', 10000); // Default to a large number to return full list for client pagination
+            $total = $sorted->count();
+            $paginatedItems = $sorted->slice(($page - 1) * $perPage, $perPage)->values();
 
             return $this->successResponse([
                 'data' => $paginatedItems,
@@ -406,6 +422,7 @@ class AccountBalanceController extends Controller
                     'amount'   => (float) $c->amount,
                     'status'   => 'Cleared',
                     'remarks'  => 'Bank: ' . $c->bank_name . ' | Due: ' . $c->due_date,
+                    'invoiceNo'=> $c->paymentReceived?->invoice_no,
                 ];
             });
 
@@ -419,6 +436,7 @@ class AccountBalanceController extends Controller
                     'amount'   => (float) $c->amount,
                     'status'   => 'Cleared',
                     'remarks'  => 'Bank: ' . $c->bank_name . ' | Due: ' . $c->due_date,
+                    'invoiceNo'=> $c->paymentSent?->invoice_no,
                 ];
             });
 
@@ -447,6 +465,7 @@ class AccountBalanceController extends Controller
                     'sentAmount'     => 0,
                     'status'         => 'CASH',
                     'remarks'        => 'Invoice #' . $p->invoice_no,
+                    'invoiceNo'      => $p->invoice_no,
                 ];
             });
 
@@ -460,6 +479,7 @@ class AccountBalanceController extends Controller
                     'sentAmount'     => (float) $p->cash_amount,
                     'status'         => 'CASH',
                     'remarks'        => 'Invoice #' . $p->invoice_no,
+                    'invoiceNo'      => $p->invoice_no,
                 ];
             });
 
