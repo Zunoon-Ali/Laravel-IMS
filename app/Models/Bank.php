@@ -80,7 +80,7 @@ class Bank extends Model
             } else {
                 $running -= (float) $entry->amount;
             }
-            $entry->update(['balance_after' => $running]);
+            $entry->updateQuietly(['balance_after' => $running]);
         }
 
         $this->update(['current_balance' => $running]);

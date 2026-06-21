@@ -128,10 +128,13 @@ class PersonalService
 
     /**
      * Get auto-generated next Invoice Number with SAL prefix (Sales).
+     * Only scans rows that start with 'SAL-' so it never collides with PAR- entries.
      */
     public function generateNextInvoiceNo(): string
     {
-        $latest = $this->paymentRepo->getLatest();
+        $latest = \App\Models\PersonalPaymentReceived::where('invoice_no', 'like', 'SAL-%')
+            ->latest('id')
+            ->first();
         if ($latest) {
             preg_match('/SAL-(\d+)/', $latest->invoice_no, $matches);
             $nextNum = isset($matches[1]) ? ((int) $matches[1]) + 1 : 10001;
@@ -142,13 +145,31 @@ class PersonalService
     }
 
     /**
+     * Get auto-generated next Payment Received Invoice Number with PAR prefix.
+     * Only scans rows that start with 'PAR-' so it never collides with SAL- entries.
+     */
+    public function generateNextPaymentReceivedInvoiceNo(): string
+    {
+        $latest = \App\Models\PersonalPaymentReceived::where('invoice_no', 'like', 'PAR-%')
+            ->latest('id')
+            ->first();
+        if ($latest) {
+            preg_match('/PAR-(\d+)/', $latest->invoice_no, $matches);
+            $nextNum = isset($matches[1]) ? ((int) $matches[1]) + 1 : 10001;
+        } else {
+            $nextNum = 10001;
+        }
+        return 'PAR-' . $nextNum;
+    }
+
+    /**
      * Store Payment Received (Sales Invoice) with sub-cheques and online logs.
      */
     public function storePaymentReceived(PersonalPaymentReceivedDTO $dto): PersonalPaymentReceived
     {
         return DB::transaction(function () use ($dto) {
-            // Auto generate next invoice
-            $invoiceNo = $this->generateNextInvoiceNo();
+            // Auto generate next PAR- invoice (Payment Received, distinct from SAL- Sale Invoices)
+            $invoiceNo = $this->generateNextPaymentReceivedInvoiceNo();
 
             $paymentData = array_merge($dto->toArray(), [
                 'invoice_no' => $invoiceNo
@@ -186,8 +207,8 @@ class PersonalService
                     'bank_name' => $online['bank_name'],
                     'name' => $online['name'],
                     'payment_date' => $online['date'],
-                    'from_name' => $online['from'],
-                    'to_name' => $online['to'],
+                    'from_name' => $online['from'] ?? $online['from_name'] ?? null,
+                    'to_name' => $online['to'] ?? $online['to_name'] ?? null,
                     'amount' => $online['amount'],
                 ]);
 
@@ -384,8 +405,8 @@ class PersonalService
                     'bank_name' => $online['bank_name'],
                     'name' => $online['name'],
                     'payment_date' => $online['date'],
-                    'from_name' => $online['from'],
-                    'to_name' => $online['to'],
+                    'from_name' => $online['from'] ?? $online['from_name'] ?? null,
+                    'to_name' => $online['to'] ?? $online['to_name'] ?? null,
                     'amount' => $online['amount'],
                 ]);
 
