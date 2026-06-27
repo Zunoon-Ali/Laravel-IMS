@@ -353,19 +353,7 @@ class PersonalService
     public function storePaymentSent(PersonalPaymentSentDTO $dto): PersonalPaymentSent
     {
         return DB::transaction(function () use ($dto) {
-            // Check for insufficient balance first
-            foreach ($dto->cheques as $cheque) {
-                $bank = Bank::where('bank_name', $cheque['bank_name'])->first();
-                if ($bank && (float) $bank->current_balance < (float) $cheque['amount']) {
-                    throw new \Exception("Warning: Insufficient balance in bank '{$bank->bank_name}'. Current balance is: " . number_format($bank->current_balance, 2));
-                }
-            }
-            foreach ($dto->onlines as $online) {
-                $bank = Bank::where('bank_name', $online['bank_name'])->first();
-                if ($bank && (float) $bank->current_balance < (float) $online['amount']) {
-                    throw new \Exception("Warning: Insufficient balance in bank '{$bank->bank_name}'. Current balance is: " . number_format($bank->current_balance, 2));
-                }
-            }
+            // Skip bank balance checks per client request (remove restrictions)
 
             $invoiceNo = $this->generateNextPaymentSentInvoiceNo();
 
@@ -481,9 +469,15 @@ class PersonalService
     public function storeCustomerSaleInvoice(array $data): PersonalPaymentReceived
     {
         return DB::transaction(function () use ($data) {
-            $customerName = $data['customerName'] ?? '';
-            $customer = \App\Models\PersonalCustomer::where('name', $customerName)->first();
+            $customerId = $data['customerId'] ?? null;
+            if ($customerId) {
+                $customer = \App\Models\PersonalCustomer::find($customerId);
+            } else {
+                $customerName = $data['customerName'] ?? '';
+                $customer = \App\Models\PersonalCustomer::where('name', $customerName)->first();
+            }
             $customerId = $customer ? $customer->id : null;
+            $customerName = $customer ? $customer->name : ($data['customerName'] ?? '');
 
             // Date formatting helper
             $date = date('Y-m-d');

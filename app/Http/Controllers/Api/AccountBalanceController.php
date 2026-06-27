@@ -415,6 +415,8 @@ class AccountBalanceController extends Controller
             $received = PersonalPaymentCheque::with('paymentReceived')->latest('id')->get()->map(function ($c) {
                 return [
                     'id'       => $c->id,
+                    'raw_date' => $c->paymentReceived?->date_received ? $c->paymentReceived->date_received->format('Y-m-d') : now()->format('Y-m-d'),
+                    'raw_id'   => $c->id,
                     'date'     => optional($c->paymentReceived?->date_received)->format('d-M-Y') ?? now()->format('d-M-Y'),
                     'chequeNo' => $c->check_no,
                     'name'     => $c->paymentReceived?->customer_name ?? '—',
@@ -429,6 +431,8 @@ class AccountBalanceController extends Controller
             $sent = PersonalPaymentSentCheque::with('paymentSent')->latest('id')->get()->map(function ($c) {
                 return [
                     'id'       => $c->id + 100000,
+                    'raw_date' => $c->paymentSent?->date_sent ? $c->paymentSent->date_sent->format('Y-m-d') : now()->format('Y-m-d'),
+                    'raw_id'   => $c->id,
                     'date'     => optional($c->paymentSent?->date_sent)->format('d-M-Y') ?? now()->format('d-M-Y'),
                     'chequeNo' => $c->check_no,
                     'name'     => $c->paymentSent?->customer_name ?? '—',
@@ -440,7 +444,13 @@ class AccountBalanceController extends Controller
                 ];
             });
 
-            $all = $received->concat($sent)->values();
+            $all = $received->concat($sent)->sort(function ($a, $b) {
+                $dateCompare = strcmp($b['raw_date'], $a['raw_date']);
+                if ($dateCompare !== 0) {
+                    return $dateCompare;
+                }
+                return $b['raw_id'] <=> $a['raw_id'];
+            })->values();
 
             return $this->successResponse($all, 'Cheques retrieved');
         } catch (\Exception $e) {
@@ -458,6 +468,8 @@ class AccountBalanceController extends Controller
             $received = PersonalPaymentReceived::where('cash_amount', '>', 0)->latest('id')->get()->map(function ($p) {
                 return [
                     'id'             => $p->id,
+                    'raw_date'       => $p->date_received ? $p->date_received->format('Y-m-d') : now()->format('Y-m-d'),
+                    'raw_id'         => $p->id,
                     'date'           => optional($p->date_received)->format('d-M-Y') ?? $p->date_received,
                     'type'           => 'Received',
                     'description'    => 'Cash received from ' . $p->customer_name,
@@ -472,6 +484,8 @@ class AccountBalanceController extends Controller
             $sent = PersonalPaymentSent::where('cash_amount', '>', 0)->latest('id')->get()->map(function ($p) {
                 return [
                     'id'             => $p->id + 100000,
+                    'raw_date'       => $p->date_sent ? $p->date_sent->format('Y-m-d') : now()->format('Y-m-d'),
+                    'raw_id'         => $p->id,
                     'date'           => optional($p->date_sent)->format('d-M-Y') ?? $p->date_sent,
                     'type'           => 'Sent',
                     'description'    => 'Cash sent to ' . $p->customer_name,
@@ -483,7 +497,13 @@ class AccountBalanceController extends Controller
                 ];
             });
 
-            $all = $received->concat($sent)->values();
+            $all = $received->concat($sent)->sort(function ($a, $b) {
+                $dateCompare = strcmp($b['raw_date'], $a['raw_date']);
+                if ($dateCompare !== 0) {
+                    return $dateCompare;
+                }
+                return $b['raw_id'] <=> $a['raw_id'];
+            })->values();
 
             return $this->successResponse($all, 'Cash entries retrieved');
         } catch (\Exception $e) {

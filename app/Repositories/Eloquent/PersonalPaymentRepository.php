@@ -11,7 +11,7 @@ class PersonalPaymentRepository implements PersonalPaymentRepositoryInterface
     public function getAllWithRelations(): Collection
     {
         // Eager load cheques and online receipts to optimize database query performance
-        return PersonalPaymentReceived::with(['cheques', 'onlines'])->latest('id')->get();
+        return PersonalPaymentReceived::with(['cheques', 'onlines'])->orderBy('date_received', 'desc')->orderBy('id', 'desc')->get();
     }
 
     public function create(array $data): PersonalPaymentReceived

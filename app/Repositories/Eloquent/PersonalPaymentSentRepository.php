@@ -10,7 +10,7 @@ class PersonalPaymentSentRepository implements PersonalPaymentSentRepositoryInte
 {
     public function getAllWithRelations(): Collection
     {
-        return PersonalPaymentSent::with(['cheques', 'onlines'])->latest('id')->get();
+        return PersonalPaymentSent::with(['cheques', 'onlines'])->orderBy('date_sent', 'desc')->orderBy('id', 'desc')->get();
     }
 
     public function create(array $data): PersonalPaymentSent

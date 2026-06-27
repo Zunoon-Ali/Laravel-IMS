@@ -11,7 +11,7 @@ class PersonalReturnRepository implements PersonalReturnRepositoryInterface
     public function getAllWithItems(): Collection
     {
         // Eager load items to prevent N+1 issues and sort by latest id
-        return PersonalReturnInvoice::with('items')->latest('id')->get();
+        return PersonalReturnInvoice::with('items')->orderBy('date_returned', 'desc')->orderBy('id', 'desc')->get();
     }
 
     public function create(array $data): PersonalReturnInvoice

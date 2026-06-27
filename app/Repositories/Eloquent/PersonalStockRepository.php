@@ -11,7 +11,7 @@ class PersonalStockRepository implements PersonalStockRepositoryInterface
     public function getAllWithItems(): Collection
     {
         // Eager load items to prevent N+1 issues and sort by latest date_added/id
-        return PersonalStockEntry::with('items')->latest('id')->get();
+        return PersonalStockEntry::with('items')->orderBy('date_added', 'desc')->orderBy('id', 'desc')->get();
     }
 
     public function create(array $data): PersonalStockEntry

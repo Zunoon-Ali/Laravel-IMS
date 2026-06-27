@@ -420,7 +420,10 @@ class PersonalNameController extends Controller
             $customerName = $customer->name;
 
             // Get all transactions for the customer
-            $paymentsReceived = \App\Models\PersonalPaymentReceived::where('customer_name', $customerName)
+            $paymentsReceived = \App\Models\PersonalPaymentReceived::where(function ($query) use ($customerId, $customerName) {
+                    $query->where('customer_id', $customerId)
+                          ->orWhere('customer_name', $customerName);
+                })
                 ->when($search, function ($query) use ($search) {
                     $query->where('invoice_no', 'like', "%{$search}%")
                           ->orWhere('description', 'like', "%{$search}%");
@@ -438,6 +441,8 @@ class PersonalNameController extends Controller
 
                     return [
                         'id' => $p->id,
+                        'raw_date' => $p->date_received ? $p->date_received->format('Y-m-d') : '1970-01-01',
+                        'raw_id' => $p->id,
                         'date' => optional($p->date_received)->format('d-M-Y') ?? $p->date_received,
                         'invoiceNo' => $p->invoice_no,
                         'customerName' => $p->customer_name,
@@ -453,7 +458,10 @@ class PersonalNameController extends Controller
                     ];
                 });
 
-            $paymentsSent = \App\Models\PersonalPaymentSent::where('customer_name', $customerName)
+            $paymentsSent = \App\Models\PersonalPaymentSent::where(function ($query) use ($customerId, $customerName) {
+                    $query->where('customer_id', $customerId)
+                          ->orWhere('customer_name', $customerName);
+                })
                 ->when($search, function ($query) use ($search) {
                     $query->where('invoice_no', 'like', "%{$search}%")
                           ->orWhere('description', 'like', "%{$search}%");
@@ -463,6 +471,8 @@ class PersonalNameController extends Controller
                 ->map(function ($p) {
                     return [
                         'id' => $p->id + 100000,
+                        'raw_date' => $p->date_sent ? $p->date_sent->format('Y-m-d') : '1970-01-01',
+                        'raw_id' => $p->id,
                         'date' => optional($p->date_sent)->format('d-M-Y') ?? $p->date_sent,
                         'invoiceNo' => $p->invoice_no,
                         'customerName' => $p->customer_name,
@@ -478,7 +488,10 @@ class PersonalNameController extends Controller
                     ];
                 });
 
-            $returnInvoices = \App\Models\PersonalReturnInvoice::where('customer_name', $customerName)
+            $returnInvoices = \App\Models\PersonalReturnInvoice::where(function ($query) use ($customerId, $customerName) {
+                    $query->where('customer_id', $customerId)
+                          ->orWhere('customer_name', $customerName);
+                })
                 ->when($search, function ($query) use ($search) {
                     $query->where('invoice_no', 'like', "%{$search}%")
                           ->orWhere('description', 'like', "%{$search}%");
@@ -488,6 +501,8 @@ class PersonalNameController extends Controller
                 ->map(function ($r) {
                     return [
                         'id' => $r->id + 200000,
+                        'raw_date' => $r->date_returned ? $r->date_returned->format('Y-m-d') : '1970-01-01',
+                        'raw_id' => $r->id,
                         'date' => optional($r->date_returned)->format('d-M-Y') ?? $r->date_returned,
                         'invoiceNo' => $r->invoice_no,
                         'customerName' => $r->customer_name,
@@ -503,19 +518,28 @@ class PersonalNameController extends Controller
                     ];
                 });
 
-            // Merge all transactions and sort by date
-            $allTransactions = $paymentsReceived->concat($paymentsSent)->concat($returnInvoices)
-                ->sortByDesc('id')
+            // Merge all transactions and sort by date ASC (chronological) for running balance
+            $allTransactionsSortedAsc = $paymentsReceived->concat($paymentsSent)->concat($returnInvoices)
+                ->sort(function ($a, $b) {
+                    $dateCompare = strcmp($a['raw_date'], $b['raw_date']);
+                    if ($dateCompare !== 0) {
+                        return $dateCompare;
+                    }
+                    return $a['raw_id'] <=> $b['raw_id'];
+                })
                 ->values();
 
-            // Calculate running balance
+            // Calculate running balance in ascending chronological order
             $runningBalance = 0;
-            $transactionsWithBalance = $allTransactions->map(function ($tx) use (&$runningBalance) {
+            $transactionsWithBalance = $allTransactionsSortedAsc->map(function ($tx) use (&$runningBalance) {
                 // debit is plus, credit is minus
                 $runningBalance += ($tx['debit'] - $tx['credit']);
                 $tx['balance'] = $runningBalance;
                 return $tx;
             });
+
+            // Re-sort to DESC (newest first) for paginated presentation
+            $transactionsWithBalance = $transactionsWithBalance->reverse()->values();
 
             // Server-side pagination
             $total = $transactionsWithBalance->count();
@@ -665,6 +689,7 @@ class PersonalNameController extends Controller
     {
         try {
             $validated = $request->validate([
+                'customerId' => 'required|integer|exists:personal_customers,id',
                 'customerName' => 'required|string',
                 'invoiceNo' => 'required|string',
                 'supplierName' => 'nullable|string',
@@ -686,6 +711,130 @@ class PersonalNameController extends Controller
         } catch (\Exception $e) {
             Log::error('Customer sale invoice store failed: ' . $e->getMessage());
             return $this->errorResponse($e->getMessage(), 422);
+        }
+    }
+
+    /**
+     * Get detailed Payment Received History breakdown.
+     */
+    public function getPaymentHistory($invoiceNo): JsonResponse
+    {
+        try {
+            $payment = \App\Models\PersonalPaymentReceived::with(['cheques', 'onlines'])
+                ->where('invoice_no', $invoiceNo)
+                ->first();
+
+            if (!$payment) {
+                return $this->errorResponse('Invoice not found', 404);
+            }
+
+            $entries = collect();
+
+            if ((float) $payment->cash_amount > 0) {
+                $entries->push([
+                    'id' => 'cash-' . $payment->id,
+                    'date' => optional($payment->date_received)->format('d-M-Y') ?? $payment->date_received,
+                    'paymentMode' => 'Cash',
+                    'chequeNoOrTrId' => '—',
+                    'amount' => (float) $payment->cash_amount,
+                ]);
+            }
+
+            foreach ($payment->cheques as $cheque) {
+                $entries->push([
+                    'id' => 'cheque-' . $cheque->id,
+                    'date' => optional($payment->date_received)->format('d-M-Y') ?? $payment->date_received,
+                    'paymentMode' => 'Cheque',
+                    'chequeNoOrTrId' => $cheque->check_no,
+                    'amount' => (float) $cheque->amount,
+                ]);
+            }
+
+            foreach ($payment->onlines as $online) {
+                $entries->push([
+                    'id' => 'online-' . $online->id,
+                    'date' => optional($payment->date_received)->format('d-M-Y') ?? $payment->date_received,
+                    'paymentMode' => 'Online',
+                    'chequeNoOrTrId' => $online->name,
+                    'amount' => (float) $online->amount,
+                ]);
+            }
+
+            return $this->successResponse([
+                'invoiceNo' => $payment->invoice_no,
+                'date' => optional($payment->date_received)->format('d-M-Y') ?? $payment->date_received,
+                'from' => $payment->customer_name,
+                'to' => $payment->to_name,
+                'description' => $payment->description ?? 'Payment Received',
+                'totalAmountReceived' => (float) $payment->total_amount,
+                'raw' => $payment,
+                'entries' => $entries,
+            ], 'Payment history retrieved successfully');
+        } catch (\Exception $e) {
+            Log::error('getPaymentHistory failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to retrieve payment history: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get detailed Payment Sent History breakdown.
+     */
+    public function getPaymentSentHistory($invoiceNo): JsonResponse
+    {
+        try {
+            $payment = \App\Models\PersonalPaymentSent::with(['cheques', 'onlines'])
+                ->where('invoice_no', $invoiceNo)
+                ->first();
+
+            if (!$payment) {
+                return $this->errorResponse('Invoice not found', 404);
+            }
+
+            $entries = collect();
+
+            if ((float) $payment->cash_amount > 0) {
+                $entries->push([
+                    'id' => 'cash-' . $payment->id,
+                    'date' => optional($payment->date_sent)->format('d-M-Y') ?? $payment->date_sent,
+                    'paymentMode' => 'Cash',
+                    'chequeNoOrTrId' => '—',
+                    'amount' => (float) $payment->cash_amount,
+                ]);
+            }
+
+            foreach ($payment->cheques as $cheque) {
+                $entries->push([
+                    'id' => 'cheque-' . $cheque->id,
+                    'date' => optional($payment->date_sent)->format('d-M-Y') ?? $payment->date_sent,
+                    'paymentMode' => 'Cheque',
+                    'chequeNoOrTrId' => $cheque->check_no,
+                    'amount' => (float) $cheque->amount,
+                ]);
+            }
+
+            foreach ($payment->onlines as $online) {
+                $entries->push([
+                    'id' => 'online-' . $online->id,
+                    'date' => optional($payment->date_sent)->format('d-M-Y') ?? $payment->date_sent,
+                    'paymentMode' => 'Online',
+                    'chequeNoOrTrId' => $online->name,
+                    'amount' => (float) $online->amount,
+                ]);
+            }
+
+            return $this->successResponse([
+                'invoiceNo' => $payment->invoice_no,
+                'date' => optional($payment->date_sent)->format('d-M-Y') ?? $payment->date_sent,
+                'from' => $payment->customer_name,
+                'to' => $payment->to_name,
+                'description' => $payment->description ?? 'Payment Sent',
+                'totalAmountReceived' => (float) $payment->total_amount,
+                'raw' => $payment,
+                'entries' => $entries,
+            ], 'Payment sent history retrieved successfully');
+        } catch (\Exception $e) {
+            Log::error('getPaymentSentHistory failed: ' . $e->getMessage());
+            return $this->errorResponse('Failed to retrieve payment sent history: ' . $e->getMessage(), 500);
         }
     }
 }
