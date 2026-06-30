@@ -55,6 +55,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('personal')->group(function () {
         Route::get('/next-invoice', [PersonalNameController::class, 'getNextInvoiceNo']);
         Route::get('/next-stock-invoice', [PersonalNameController::class, 'getNextStockInvoiceNo']);
+        Route::get('/next-payment-received-invoice', [PersonalNameController::class, 'getNextPaymentReceivedInvoiceNo']);
+        Route::get('/next-payment-sent-invoice', [PersonalNameController::class, 'getNextPaymentSentInvoiceNo']);
+        Route::get('/next-return-invoice', [PersonalNameController::class, 'getNextReturnInvoiceNo']);
         Route::get('/stock-entries', [PersonalNameController::class, 'getStockEntries']);
         Route::post('/stock-entries', [PersonalNameController::class, 'storeStockEntry']);
         Route::put('/stock-entries/{id}', [PersonalNameController::class, 'updateStockEntry']);

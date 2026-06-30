@@ -118,12 +118,17 @@ class PersonalService
     }
 
     /**
-     * Get auto-generated next Purchased Stock Invoice/Container Number.
+     * Get auto-generated next Purchased Stock Invoice/Container Number (sequential).
      */
     public function generateNextStockInvoiceNo(): string
     {
-        // 6 characters UUID-like alphanumeric key (e.g. 7D2AE8)
-        return strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 6));
+        $latest = \App\Models\PersonalStockEntry::latest('id')->first();
+        if ($latest && $latest->container_no && preg_match('/STOCK-(\d+)/', $latest->container_no, $m)) {
+            return 'STOCK-' . ($m[1] + 1);
+        }
+        // Fallback: count all entries and start from 10001
+        $count = \App\Models\PersonalStockEntry::count();
+        return 'STOCK-' . (10001 + $count);
     }
 
     /**
@@ -345,6 +350,23 @@ class PersonalService
             $nextNum = 10001;
         }
         return 'PAS-' . $nextNum;
+    }
+
+    /**
+     * Get auto-generated next Sale Return Invoice Number with SRI prefix.
+     */
+    public function generateNextReturnInvoiceNo(): string
+    {
+        $latest = \App\Models\PersonalReturnInvoice::where('invoice_no', 'like', 'SRI-%')
+            ->latest('id')
+            ->first();
+        if ($latest) {
+            preg_match('/SRI-(\d+)/', $latest->invoice_no, $matches);
+            $nextNum = isset($matches[1]) ? ((int) $matches[1]) + 1 : 10001;
+        } else {
+            $nextNum = 10001;
+        }
+        return 'SRI-' . $nextNum;
     }
 
     /**

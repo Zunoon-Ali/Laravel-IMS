@@ -21,7 +21,7 @@ class StorePaymentSentRequest extends FormRequest
     {
         return [
             'customer_name' => 'required|string|max:255',
-            'to_name' => 'required|string|max:255',
+            'to_name' => 'nullable|string|max:255',
             'date_sent' => 'required|date',
             'cash_amount' => 'nullable|numeric|min:0',
             'total_amount' => 'required|numeric|min:0',

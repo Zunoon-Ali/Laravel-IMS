@@ -70,6 +70,39 @@ class PersonalNameController extends Controller
     }
 
     /**
+     * Get next sequential Payment Received Invoice Number (PAR- prefix).
+     */
+    public function getNextPaymentReceivedInvoiceNo(): JsonResponse
+    {
+        $invoiceNo = $this->personalService->generateNextPaymentReceivedInvoiceNo();
+        return $this->successResponse([
+            'invoice_no' => $invoiceNo
+        ], 'Next payment received invoice number generated');
+    }
+
+    /**
+     * Get next sequential Payment Sent Invoice Number (PAS- prefix).
+     */
+    public function getNextPaymentSentInvoiceNo(): JsonResponse
+    {
+        $invoiceNo = $this->personalService->generateNextPaymentSentInvoiceNo();
+        return $this->successResponse([
+            'invoice_no' => $invoiceNo
+        ], 'Next payment sent invoice number generated');
+    }
+
+    /**
+     * Get next sequential Sale Return Invoice Number (SRI- prefix).
+     */
+    public function getNextReturnInvoiceNo(): JsonResponse
+    {
+        $invoiceNo = $this->personalService->generateNextReturnInvoiceNo();
+        return $this->successResponse([
+            'invoice_no' => $invoiceNo
+        ], 'Next return invoice number generated');
+    }
+
+    /**
      * Get all Purchased Stock Entries.
      */
     public function getStockEntries(): JsonResponse
@@ -482,8 +515,8 @@ class PersonalNameController extends Controller
                         'smallBales' => 0,
                         'weightKgs' => 0,
                         'rate' => 0,
-                        'debit' => 0.0,
-                        'credit' => (float) $p->total_amount,
+                        'debit' => (float) $p->total_amount,
+                        'credit' => 0.0,
                         'type' => 'payment_sent',
                     ];
                 });
@@ -689,10 +722,11 @@ class PersonalNameController extends Controller
     {
         try {
             $validated = $request->validate([
-                'customerId' => 'required|integer|exists:personal_customers,id',
-                'customerName' => 'required|string',
+                // customerId is optional – allows custom/unknown names typed in the "To" dropdown
+                'customerId' => 'nullable|integer|exists:personal_customers,id',
+                'customerName' => 'required|string|max:255',
                 'invoiceNo' => 'required|string',
-                'supplierName' => 'nullable|string',
+                'supplierName' => 'nullable|string|max:255',
                 'dateAdded' => 'nullable|string',
                 'description' => 'nullable|string',
                 'extraCharges' => 'nullable|numeric',

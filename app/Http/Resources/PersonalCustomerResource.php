@@ -15,6 +15,7 @@ class PersonalCustomerResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'role' => 'customer',
             'phone' => $this->phone,
             'email' => $this->email,
             'status' => $this->status,

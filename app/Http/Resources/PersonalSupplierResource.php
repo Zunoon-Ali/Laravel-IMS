@@ -15,6 +15,7 @@ class PersonalSupplierResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'role' => 'supplier',
             'phone' => $this->phone,
             'email' => $this->email,
             'status' => $this->status,
